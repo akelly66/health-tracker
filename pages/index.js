@@ -166,7 +166,7 @@ export default function Home() {
       });
       const macros = await estRes.json();
       if (macros.error) throw new Error(macros.error);
-      const newMeals = [...meals, { ...macros, type: mealType }];
+      const newMeals = [...meals, { ...macros, type: mealType, confidence: macros.confidence || 'Medium' }];
       setMeals(newMeals);
       const newTotals = newMeals.reduce((acc, m) => ({ calories: acc.calories + m.calories, protein: acc.protein + m.protein, carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
       setMealStatus({ text: 'Syncing to Notion...', type: 'loading' });
