@@ -165,6 +165,7 @@ export default function Home() {
       ctx.drawImage(img, 0, 0, width, height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
       URL.revokeObjectURL(objectUrl);
+      console.log('Image size:', Math.round(dataUrl.length * 0.75 / 1024), 'KB');
       setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
     };
     img.src = objectUrl;
