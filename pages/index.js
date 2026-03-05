@@ -173,7 +173,7 @@ export default function Home() {
       const mealLogText = newMeals.map(m => `${m.type}: ${m.name} — ${m.calories} kcal | P${m.protein}g C${m.carbs}g F${m.fat}g`).join('\n');
       await fetch(MAKE_WEBHOOK, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: new Date().toISOString().split('T')[0], calories: Math.round(newTotals.calories), protein: Math.round(newTotals.protein), carbs: Math.round(newTotals.carbs), fat: Math.round(newTotals.fat), meal_log: mealLogText })
+        body: JSON.stringify({ date: new Date().toISOString().split('T')[0].replace(/-/g, '/'), calories: Math.round(newTotals.calories), protein: Math.round(newTotals.protein), carbs: Math.round(newTotals.carbs), fat: Math.round(newTotals.fat), meal_log: mealLogText })
       });
       setMealStatus({ text: `✓ Logged: ${macros.name} (${macros.calories} kcal)`, type: 'success' });
       setMealInput(''); setPhoto(null);
@@ -182,7 +182,7 @@ export default function Home() {
   }
 
   async function syncMetrics() {
-    const payload = { date: new Date().toISOString().split('T')[0], type: 'metrics' };
+    const payload = { date: new Date().toISOString().split('T')[0].replace(/-/g, '/'), type: 'metrics' };
     if (weight) payload.weight = parseFloat(weight);
     if (steps) payload.steps = parseInt(steps);
     if (activeCal) payload.active_calories = parseInt(activeCal);
