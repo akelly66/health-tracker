@@ -35,7 +35,8 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     if (data.error) return res.status(500).json({ error: data.error.message });
-    const macros = JSON.parse(data.content[0].text.trim());
+    const raw = data.content[0].text.trim().replace(/^```json\s*/i, '').replace(/```$/g, '').trim();
+    const macros = JSON.parse(raw);
     res.status(200).json(macros);
   } catch (err) {
     res.status(500).json({ error: err.message });
