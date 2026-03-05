@@ -153,7 +153,7 @@ export default function Home() {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
-      const maxSize = 1200;
+      const maxSize = 800;
       let { width, height } = img;
       if (width > maxSize || height > maxSize) {
         if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
@@ -163,7 +163,7 @@ export default function Home() {
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
       URL.revokeObjectURL(objectUrl);
       setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
     };
