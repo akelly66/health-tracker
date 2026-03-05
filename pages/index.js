@@ -150,9 +150,24 @@ export default function Home() {
   function handlePhotoSelect(e) { const file = e.target.files[0]; if (!file) return; loadPhoto(file); }
   function handleDrop(e) { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('image/')) loadPhoto(file); }
   function loadPhoto(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => { const dataUrl = e.target.result; setPhoto({ base64: dataUrl.split(',')[1], mediaType: file.type || 'image/jpeg', previewUrl: dataUrl }); };
-    reader.readAsDataURL(file);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxSize = 1200;
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
+        else { width = Math.round(width * maxSize / height); height = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      URL.revokeObjectURL(objectUrl);
+      setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+    };
+    img.src = objectUrl;
   }
 
   async function logMeal() {
