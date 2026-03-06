@@ -5,91 +5,188 @@ const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g
 const TDEE = 1795;
 const PROTEIN_TARGET = 110;
 
+const ZapIcon = ({ size = 14, style = {} }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+);
+const SmileIcon = ({ size = 14, style = {} }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}>
+    <circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/>
+    <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+  </svg>
+);
+const CameraIcon = ({ size = 13 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+    <circle cx="12" cy="13" r="4"/>
+  </svg>
+);
+const CheckIcon = ({ size = 10 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+const DotIcon = ({ size = 8, color = '#00a165' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none">
+    <circle cx="12" cy="12" r="8"/>
+  </svg>
+);
+const ScaleIcon = ({ size = 14 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 3v19"/><path d="M5 21h14"/>
+    <path d="M3 7l4-4 5 4"/><path d="M21 7l-4-4-5 4"/>
+    <path d="M3 7c0 3.3 2.7 6 6 6s6-2.7 6-6"/>
+    <path d="M21 7c0 3.3-2.7 6-6 6s-6-2.7-6-6"/>
+  </svg>
+);
+const PencilIcon = ({ size = 10 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+const ArrowUpIcon = ({ size = 16 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>
+  </svg>
+);
+const PlusIcon = ({ size = 11 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+  </svg>
+);
+const SendIcon = ({ size = 10 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+const UtensilsIcon = ({ size = 15, color = '#00a165' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/>
+    <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+  </svg>
+);
+const CupIcon = ({ size = 15, color = '#d080d0' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M8 2h8l1 10H7L8 2z"/><path d="M7 12c0 4 2 6 5 6s5-2 5-6"/><path d="M6 21h12"/>
+  </svg>
+);
+
+const mealTypeColors = {
+  Breakfast: { bg: '#e6f4ec', icon: '#00a165' },
+  Lunch:     { bg: '#e6f4ec', icon: '#00a165' },
+  Dinner:    { bg: '#fde8f1', icon: '#d080d0' },
+  Snack:     { bg: '#ffe0e4', icon: '#ff0838' },
+};
+
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #f5f4f0; --surface: #ffffff; --border: #e0ddd6;
-    --text: #1a1a1a; --muted: #888; --accent: #2d5a27;
-    --accent-light: #e8f0e7; --danger: #c0392b;
-    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+    --cream: #fbf1f5; --white: #ffffff; --green: #00a165; --pink: #ffc0ff;
+    --red: #ff0838; --black: #111111; --muted: #888; --border: #d9d4c8;
+    --serif: 'Playfair Display', Georgia, serif;
+    --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
   }
-  body { background: var(--bg); font-family: var(--sans); color: var(--text); min-height: 100vh; }
-  .wrap { display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
-  header { width: 100%; max-width: 560px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-  .logo { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-  .date { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .tabs { width: 100%; max-width: 560px; display: flex; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
-  .tab { flex: 1; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px; text-align: center; background: var(--bg); color: var(--muted); cursor: pointer; border: none; transition: all 0.15s; }
-  .tab.active { background: var(--surface); color: var(--accent); }
-  .panel { width: 100%; max-width: 560px; display: flex; flex-direction: column; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 24px; width: 100%; margin-bottom: 16px; }
-  .card-label { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
-  .totals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
-  .total-cell { background: var(--surface); padding: 14px 12px; text-align: center; }
-  .total-value { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--text); line-height: 1; }
-  .total-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
-  .bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
-  .bar { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
-  .bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 6px; display: flex; justify-content: space-between; }
-  .meal-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; min-height: 40px; }
-  .meal-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  body { background: var(--cream); font-family: var(--sans); color: var(--black); min-height: 100vh; }
+  .wrap { display: flex; flex-direction: column; align-items: center; padding: 0 0 60px; }
+  .header { width: 100%; background: var(--green); padding: 18px 24px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header-title { font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--pink); display: flex; align-items: center; gap: 8px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-date { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; text-transform: uppercase; }
+  .tabs { width: 100%; max-width: 560px; display: flex; margin: 0 auto 20px; padding: 0 20px; }
+  .tab { flex: 1; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 0; text-align: center; background: transparent; color: var(--muted); cursor: pointer; border: none; border-bottom: 2px solid var(--border); transition: all 0.15s; }
+  .tab.active { color: var(--red); border-bottom: 2px solid var(--red); }
+  .panel { width: 100%; max-width: 560px; padding: 0 20px; display: flex; flex-direction: column; }
+  .today-card { background: var(--green); border-radius: 8px; padding: 20px 20px 16px; margin-bottom: 14px; }
+  .today-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 20px; }
+  .macros-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; margin-bottom: 12px; align-items: flex-end; }
+  .macro-cell { padding: 0 12px 0 0; }
+  .macro-value { font-family: var(--serif); font-size: 30px; font-weight: 900; color: var(--white); line-height: 1; }
+  .macro-value.big { font-size: 40px; }
+  .macro-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-top: 3px; }
+  .bar-track { height: 4px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+  .bar-fill { height: 100%; background: var(--pink); border-radius: 4px; transition: width 0.4s ease; }
+  .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: rgba(255,255,255,0.4); letter-spacing: 0.06em; }
+  .weight-row { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); margin-top: 14px; }
+  .weight-left { display: flex; align-items: center; gap: 10px; }
+  .weight-icon { width: 28px; height: 28px; background: var(--pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--green); }
+  .weight-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .weight-input-wrap { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 6px 14px; }
+  .weight-input { font-family: var(--serif); font-size: 18px; font-weight: 700; color: #ffffff; background: transparent; border: none; outline: none; width: 64px; text-align: right; -moz-appearance: textfield; }
+  .weight-input::-webkit-outer-spin-button, .weight-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .weight-input::placeholder { color: rgba(255,255,255,0.4); }
+  .weight-unit { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.8); letter-spacing: 0.08em; display: flex; align-items: center; gap: 4px; }
+  .card { background: var(--white); border-radius: 8px; padding: 20px; margin-bottom: 14px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-title { font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--black); }
+  .pending-pill { display: flex; align-items: center; gap: 5px; background: #f0ede8; border-radius: 20px; padding: 4px 10px; font-family: var(--mono); font-size: 9px; color: var(--green); letter-spacing: 0.08em; }
+  .meal-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
   .meal-item:last-child { border-bottom: none; padding-bottom: 0; }
-  .meal-name { font-size: 14px; font-weight: 400; flex: 1; line-height: 1.4; }
-  .meal-macros { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; line-height: 1.6; }
-  .empty { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 20px 0; }
-  .badge { display: inline-block; font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 5px; border-radius: 2px; margin-left: 6px; vertical-align: middle; }
-  .badge-high { background: var(--accent-light); color: var(--accent); }
-  .badge-medium { background: #fef3e2; color: #b7770d; }
-  .badge-low { background: #fdecea; color: var(--danger); }
-  textarea { width: 100%; border: 1px solid var(--border); border-radius: 3px; padding: 12px; font-family: var(--sans); font-size: 14px; color: var(--text); background: var(--bg); resize: none; line-height: 1.5; outline: none; transition: border-color 0.15s; }
-  textarea:focus { border-color: var(--accent); }
+  .meal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .meal-body { flex: 1; }
+  .meal-name { font-size: 14px; font-weight: 500; line-height: 1.3; margin-bottom: 3px; }
+  .meal-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
+  .meal-right { text-align: right; flex-shrink: 0; }
+  .meal-kcal { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--black); }
+  .meal-kcal-label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.06em; }
+  .synced-check { font-size: 10px; color: var(--green); font-family: var(--mono); margin-top: 3px; display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+  .pending-check { font-size: 10px; color: var(--green); font-family: var(--mono); margin-top: 3px; display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+  .meal-empty { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 20px 0; }
+  .photo-zone { border: 1.5px dashed #e8c5d4; border-radius: 8px; padding: 16px; text-align: center; background: #fbf0f5; margin-bottom: 10px; cursor: pointer; position: relative; transition: border-color 0.15s; }
+  .photo-zone:hover { border-color: var(--red); }
+  .photo-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .photo-zone-text { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.06em; display: flex; align-items: center; justify-content: center; gap: 6px; pointer-events: none; }
+  .photo-zone-text span { color: var(--red); }
+  .photo-preview { position: relative; margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .photo-preview img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
+  .remove-btn { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 20px; font-size: 10px; padding: 4px 10px; cursor: pointer; font-family: var(--mono); letter-spacing: 0.05em; text-transform: uppercase; }
+  textarea { width: 100%; border: 1px solid #fbf1f5; border-radius: 8px; padding: 12px; font-family: var(--sans); font-size: 14px; color: var(--black); background: #fbf0f5; resize: none; line-height: 1.5; outline: none; }
+  textarea:focus { border-color: var(--pink); }
   textarea::placeholder { color: var(--muted); }
   .input-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-  select { font-family: var(--mono); font-size: 11px; border: 1px solid var(--border); border-radius: 3px; padding: 8px 10px; background: var(--bg); color: var(--text); cursor: pointer; outline: none; }
-  button { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 16px; border-radius: 3px; border: none; cursor: pointer; transition: all 0.15s; }
-  .btn { background: var(--accent); color: white; margin-left: auto; white-space: nowrap; }
-  .btn:hover { background: #234820; }
-  .btn:disabled { background: var(--muted); cursor: not-allowed; }
-  .btn-send { background: var(--accent); color: white; margin-left: 0; align-self: flex-end; white-space: nowrap; }
-  .btn-send:disabled { background: var(--muted); cursor: not-allowed; }
-  .inline-inputs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  input[type=number] { font-family: var(--mono); font-size: 13px; border: 1px solid var(--border); border-radius: 3px; padding: 8px 10px; background: var(--bg); color: var(--text); outline: none; width: 110px; transition: border-color 0.15s; }
-  input[type=number]:focus { border-color: var(--accent); }
-  .sync-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+  select { font-family: var(--mono); font-size: 11px; border: 1px solid #e8c5d4; border-radius: 20px; padding: 8px 14px; background: #fbf0f5; color: var(--black); outline: none; letter-spacing: 0.06em; cursor: pointer; }
+  .btn-estimate { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--red); background: transparent; color: var(--red); cursor: pointer; margin-left: auto; display: flex; align-items: center; gap: 5px; }
+  .btn-estimate:disabled { opacity: 0.5; cursor: not-allowed; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .sync-status { font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: 0.06em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .btn-sync { width: 100%; font-family: var(--serif); font-size: 16px; font-weight: 700; padding: 14px; border-radius: 8px; border: none; background: var(--green); color: var(--pink); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-sync:hover { background: #008a55; }
+  .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
   .status { font-family: var(--mono); font-size: 11px; margin-top: 10px; min-height: 16px; }
-  .status-success { color: var(--accent); }
-  .status-error { color: var(--danger); }
+  .status-success { color: var(--green); }
+  .status-error { color: var(--red); }
   .status-loading { color: var(--muted); }
-  .photo-zone { border: 1.5px dashed var(--border); border-radius: 3px; padding: 14px; margin-bottom: 10px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); position: relative; }
-  .photo-zone:hover { border-color: var(--accent); background: var(--accent-light); }
-  .photo-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-  .photo-zone-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.06em; pointer-events: none; }
-  .photo-zone-label span { color: var(--accent); }
-  .photo-preview { position: relative; margin-bottom: 10px; border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
-  .photo-preview img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
-  .remove-btn { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 2px; font-size: 10px; padding: 3px 7px; cursor: pointer; font-family: var(--mono); letter-spacing: 0.05em; text-transform: uppercase; margin-left: 0; }
-  .ctx-bar { background: var(--accent-light); border: 1px solid #c5dcc3; border-radius: 3px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .ctx-bar { background: #e6f4ec; border: 1px solid #b8dfc8; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
   .ctx-item { text-align: center; }
-  .ctx-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
-  .ctx-value { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; }
+  .ctx-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); margin-bottom: 2px; }
+  .ctx-value { font-family: var(--serif); font-size: 16px; font-weight: 700; color: var(--black); }
   .pills { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-  .pill { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); cursor: pointer; transition: all 0.15s; }
-  .pill.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+  .pill { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--cream); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .pill.active { border-color: var(--green); background: #e6f4ec; color: var(--green); }
   .chat { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
   .chat::-webkit-scrollbar { width: 3px; }
   .chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .msg { display: flex; flex-direction: column; gap: 4px; }
-  .msg-role { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-  .msg-user .msg-role { color: var(--accent); }
-  .msg-body { font-size: 14px; line-height: 1.6; color: var(--text); background: var(--bg); border-radius: 3px; padding: 10px 14px; border: 1px solid var(--border); white-space: pre-wrap; }
-  .msg-user .msg-body { background: var(--accent-light); border-color: #c5dcc3; }
+  .chat-bubble { padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .chat-bubble.assistant { background: var(--white); border: 1px solid var(--border); border-bottom-left-radius: 4px; white-space: pre-wrap; }
+  .chat-bubble.user { background: var(--green); color: var(--white); border-bottom-right-radius: 4px; font-size: 13px; }
+  .msg-wrap { display: flex; flex-direction: column; }
+  .msg-wrap.user { align-items: flex-end; }
+  .msg-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .msg-wrap.user .msg-label { color: var(--green); text-align: right; }
+  .log-this-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--red); border: 1.5px solid var(--red); border-radius: 20px; padding: 6px 12px; cursor: pointer; background: transparent; }
   .chat-empty { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 24px 0; line-height: 1.8; }
   .suggestions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .sug-btn { font-family: var(--sans); font-size: 13px; text-align: left; padding: 8px 12px; border-radius: 3px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; transition: all 0.15s; letter-spacing: 0; text-transform: none; font-weight: 400; margin-left: 0; }
-  .sug-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+  .sug-btn { font-family: var(--sans); font-size: 13px; text-align: left; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--black); cursor: pointer; transition: all 0.15s; }
+  .sug-btn:hover { border-color: var(--green); background: #e6f4ec; }
   .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
   .chat-input-row textarea { flex: 1; min-height: 60px; margin: 0; }
+  .btn-send { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 16px; border-radius: 20px; border: none; background: var(--green); color: var(--pink); cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 export default function Home() {
@@ -99,18 +196,18 @@ export default function Home() {
   const [mealInput, setMealInput] = useState('');
   const [mealType, setMealType] = useState('Breakfast');
   const [photo, setPhoto] = useState(null);
-  const [mealStatus, setMealStatus] = useState({ text: '', type: '' });
   const [mealLoading, setMealLoading] = useState(false);
+  const [mealStatus, setMealStatus] = useState({ text: '', type: '' });
   const [weight, setWeight] = useState('');
-  const [steps, setSteps] = useState('');
-  const [activeCal, setActiveCal] = useState('');
-  const [metricsStatus, setMetricsStatus] = useState({ text: '', type: '' });
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ text: '', type: '' });
   const [advisorMode, setAdvisorMode] = useState('suggest');
   const [chatHistory, setChatHistory] = useState([]);
   const [advisorInput, setAdvisorInput] = useState('');
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advisorStatus, setAdvisorStatus] = useState({ text: '', type: '' });
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [prefillMeal, setPrefillMeal] = useState(null);
   const chatRef = useRef(null);
   const photoInputRef = useRef(null);
 
@@ -123,9 +220,10 @@ export default function Home() {
         const res = await fetch('/api/today');
         const data = await res.json();
         if (!data.found) { setMealStatus({ text: '', type: '' }); return; }
-        setMeals(data.meals || []);
+        const restored = (data.meals || []).map(m => ({ ...m, synced: true }));
+        setMeals(restored);
         setTotals({ calories: data.calories, protein: data.protein, carbs: data.carbs, fat: data.fat });
-        setMealStatus({ text: `✓ Restored today's data (${Math.round(data.calories)} kcal logged)`, type: 'success' });
+        setMealStatus({ text: `✓ Restored today's data (${Math.round(data.calories)} kcal)`, type: 'success' });
         setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
       } catch {
         setMealStatus({ text: '', type: '' });
@@ -147,84 +245,134 @@ export default function Home() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory]);
 
-  function handlePhotoSelect(e) { const file = e.target.files[0]; if (!file) return; loadPhoto(file); }
-  function handleDrop(e) { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('image/')) loadPhoto(file); }
-  function loadPhoto(file) {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      const maxSize = 800;
-      let { width, height } = img;
-      if (width > maxSize || height > maxSize) {
-        if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
-        else { width = Math.round(width * maxSize / height); height = maxSize; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-      URL.revokeObjectURL(objectUrl);
-      console.log('Image size:', Math.round(dataUrl.length * 0.75 / 1024), 'KB');
-      setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
-    };
-    img.src = objectUrl;
+  useEffect(() => {
+    if (prefillMeal) {
+      setTab('log');
+      setMealInput(prefillMeal.name);
+    }
+  }, [prefillMeal]);
+
+  function handlePhotoSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    loadPhoto(file);
   }
 
-  async function logMeal() {
-    if (!mealInput.trim() && !photo) return;
+  function handleDrop(e) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadPhoto(file);
+  }
+
+  function loadPhoto(file) {
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function estimateMeal() {
+    if (!mealInput.trim() && !photo && !prefillMeal) return;
     setMealLoading(true);
     setMealStatus({ text: 'Estimating macros...', type: 'loading' });
     try {
-      const estRes = await fetch('/api/estimate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: mealInput.trim(), mealType, photo: photo ? { base64: photo.base64, mediaType: photo.mediaType } : null })
-      });
-      const macros = await estRes.json();
-      if (macros.error) throw new Error(macros.error);
-      const newMeals = [...meals, { ...macros, type: mealType, confidence: macros.confidence || 'Medium' }];
-      setMeals(newMeals);
-      const newTotals = newMeals.reduce((acc, m) => ({ calories: acc.calories + m.calories, protein: acc.protein + m.protein, carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-      setMealStatus({ text: 'Syncing to Notion...', type: 'loading' });
-      const mealLogText = newMeals.map(m => `${m.type}: ${m.name} — ${m.calories} kcal | P${m.protein}g C${m.carbs}g F${m.fat}g`).join('\n');
-      await fetch(MAKE_WEBHOOK, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: new Date().toISOString().split('T')[0].replace(/-/g, '/'), calories: Math.round(newTotals.calories), protein: Math.round(newTotals.protein), carbs: Math.round(newTotals.carbs), fat: Math.round(newTotals.fat), meal_log: mealLogText })
-      });
-      setMealStatus({ text: `✓ Logged: ${macros.name} (${macros.calories} kcal)`, type: 'success' });
-      setMealInput(''); setPhoto(null);
-    } catch (err) { setMealStatus({ text: `Error: ${err.message}`, type: 'error' }); }
+      let macros;
+      if (prefillMeal) {
+        macros = { ...prefillMeal, confidence: prefillMeal.confidence || 'Medium' };
+      } else {
+        const estRes = await fetch('/api/estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: mealInput.trim(), mealType,
+            photo: photo ? { base64: photo.base64, mediaType: photo.mediaType } : null
+          })
+        });
+        macros = await estRes.json();
+        if (macros.error) throw new Error(macros.error);
+      }
+      setMeals(prev => [...prev, { ...macros, type: mealType, synced: false }]);
+      setMealStatus({ text: `✓ Added: ${macros.name} (${macros.calories} kcal)`, type: 'success' });
+      setMealInput('');
+      setPhoto(null);
+      setPrefillMeal(null);
+      setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
+    } catch (err) {
+      setMealStatus({ text: `Error: ${err.message}`, type: 'error' });
+    }
     setMealLoading(false);
   }
 
-  async function syncMetrics() {
-    const payload = { date: new Date().toISOString().split('T')[0].replace(/-/g, '/'), type: 'metrics' };
-    if (weight) payload.weight = parseFloat(weight);
-    if (steps) payload.steps = parseInt(steps);
-    if (activeCal) payload.active_calories = parseInt(activeCal);
-    setMetricsStatus({ text: 'Syncing...', type: 'loading' });
+  async function syncToNotion() {
+    setSyncLoading(true);
+    setSyncStatus({ text: 'Syncing to Notion...', type: 'loading' });
     try {
-      await fetch(MAKE_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      setMetricsStatus({ text: '✓ Metrics synced', type: 'success' });
-    } catch (err) { setMetricsStatus({ text: `Error: ${err.message}`, type: 'error' }); }
+      const mealLogText = meals.map(m =>
+        `${m.type}: ${m.name} — ${m.calories} kcal | P${m.protein}g C${m.carbs}g F${m.fat}g`
+      ).join('\n');
+      const currentTotals = meals.reduce((acc, m) => ({
+        calories: acc.calories + m.calories, protein: acc.protein + m.protein,
+        carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+      const payload = {
+        date: new Date().toISOString().split('T')[0],
+        calories: Math.round(currentTotals.calories),
+        protein: Math.round(currentTotals.protein),
+        carbs: Math.round(currentTotals.carbs),
+        fat: Math.round(currentTotals.fat),
+        meal_log: mealLogText,
+      };
+      if (weight) payload.weight = parseFloat(weight);
+      await fetch(MAKE_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      setMeals(prev => prev.map(m => ({ ...m, synced: true })));
+      setSyncStatus({ text: '✓ Synced to Notion', type: 'success' });
+      setTimeout(() => setSyncStatus({ text: '', type: '' }), 3000);
+    } catch (err) {
+      setSyncStatus({ text: `Error: ${err.message}`, type: 'error' });
+    }
+    setSyncLoading(false);
   }
 
   async function sendAdvisorMessage(msg) {
     const message = msg || advisorInput.trim();
     if (!message) return;
-    setAdvisorLoading(true); setAdvisorInput(''); setShowSuggestions(false);
+    setAdvisorLoading(true);
+    setAdvisorInput('');
+    setShowSuggestions(false);
     setChatHistory(h => [...h, { role: 'user', content: message }]);
     setAdvisorStatus({ text: 'Thinking...', type: 'loading' });
     try {
       const res = await fetch('/api/advisor', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, totals, meals, advisorMode, chatHistory })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setChatHistory(h => [...h, { role: 'assistant', content: data.reply }]);
+      setChatHistory(h => [...h, { role: 'assistant', content: data.reply, mealData: data.mealData || null }]);
       setAdvisorStatus({ text: '', type: '' });
-    } catch (err) { setAdvisorStatus({ text: `Error: ${err.message}`, type: 'error' }); }
+    } catch (err) {
+      setAdvisorStatus({ text: `Error: ${err.message}`, type: 'error' });
+    }
     setAdvisorLoading(false);
   }
 
@@ -232,17 +380,34 @@ export default function Home() {
   const deficit = TDEE - Math.round(totals.calories);
   const remaining = Math.max(0, deficit);
   const proteinLeft = Math.max(0, PROTEIN_TARGET - Math.round(totals.protein));
-  const modePlaceholders = { suggest: "What should I eat next?", pantry: "Tell me what ingredients you have...", checkin: "How's my day looking?", recipe: "Give me a recipe that fits my macros..." };
+  const pendingCount = meals.filter(m => !m.synced).length;
+
+  const modePlaceholders = {
+    suggest: "What should I eat next?",
+    pantry: "Tell me what ingredients you have...",
+    checkin: "How's my day looking?",
+    recipe: "Give me a recipe that fits my macros..."
+  };
 
   return (
     <>
-      <Head><title>Health Log</title><meta name="viewport" content="width=device-width, initial-scale=1" /></Head>
+      <Head>
+        <title>Body Log</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
       <style>{styles}</style>
       <div className="wrap">
-        <header>
-          <div className="logo">Health Log</div>
-          <div className="date">{today}</div>
-        </header>
+        <div className="header">
+          <div className="header-title">
+            <ZapIcon size={18} style={{ color: '#ff0838' }} />
+            Body Log
+          </div>
+          <div className="header-right">
+            <div className="header-date">{today}</div>
+            <SmileIcon size={16} style={{ color: '#ffc0ff' }} />
+          </div>
+        </div>
+
         <div className="tabs">
           <button className={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>Log</button>
           <button className={`tab ${tab === 'advisor' ? 'active' : ''}`} onClick={() => setTab('advisor')}>Advisor</button>
@@ -250,71 +415,148 @@ export default function Home() {
 
         {tab === 'log' && (
           <div className="panel">
-            <div className="card">
-              <div className="card-label">Today</div>
-              <div className="totals-grid">
-                <div className="total-cell"><div className="total-value">{Math.round(totals.calories)}</div><div className="total-label">kcal</div></div>
-                <div className="total-cell"><div className="total-value">{Math.round(totals.protein)}g</div><div className="total-label">protein</div></div>
-                <div className="total-cell"><div className="total-value">{Math.round(totals.carbs)}g</div><div className="total-label">carbs</div></div>
-                <div className="total-cell"><div className="total-value">{Math.round(totals.fat)}g</div><div className="total-label">fat</div></div>
+            <div className="today-card">
+              <div className="today-label">Today's intake</div>
+              <div className="macros-row">
+                <div className="macro-cell">
+                  <div className="macro-value big">{Math.round(totals.calories).toLocaleString()}</div>
+                  <div className="macro-label">kcal</div>
+                </div>
+                <div className="macro-cell">
+                  <div className="macro-value">{Math.round(totals.protein)}g</div>
+                  <div className="macro-label">protein</div>
+                </div>
+                <div className="macro-cell">
+                  <div className="macro-value">{Math.round(totals.carbs)}g</div>
+                  <div className="macro-label">carbs</div>
+                </div>
+                <div className="macro-cell">
+                  <div className="macro-value">{Math.round(totals.fat)}g</div>
+                  <div className="macro-label">fat</div>
+                </div>
               </div>
-              <div className="bar-wrap"><div className="bar" style={{ width: pct + '%', background: totals.calories > TDEE ? '#c0392b' : '#2d5a27' }} /></div>
-              <div className="bar-label"><span>{Math.round(totals.calories)} kcal eaten</span><span>{deficit >= 0 ? `${deficit} kcal remaining` : `${Math.abs(deficit)} kcal over`}</span></div>
-            </div>
-            <div className="card">
-              <div className="card-label">Meals</div>
-              <div className="meal-list">
-                {meals.length === 0 ? <div className="empty">No meals logged today</div> : meals.map((m, i) => (
-                  <div key={i} className="meal-item">
-                    <div className="meal-name">{m.name}<span className={`badge badge-${m.confidence?.toLowerCase()}`}>{m.confidence}</span></div>
-                    <div className="meal-macros"><span>{m.calories} kcal</span><span>P {m.protein}g · C {m.carbs}g · F {m.fat}g</span></div>
-                  </div>
-                ))}
+              <div className="bar-track">
+                <div className="bar-fill" style={{ width: pct + '%' }} />
+              </div>
+              <div className="bar-labels">
+                <span>{Math.round(totals.calories).toLocaleString()} eaten</span>
+                <span>{deficit >= 0 ? `${deficit} remaining of ${TDEE}` : `${Math.abs(deficit)} over`}</span>
+              </div>
+              <div className="weight-row">
+                <div className="weight-left">
+                  <div className="weight-icon"><ScaleIcon size={14} /></div>
+                  <div className="weight-label">Today's weight</div>
+                </div>
+                <div className="weight-input-wrap">
+                  <input
+                    className="weight-input"
+                    type="number"
+                    placeholder="—"
+                    step="0.1"
+                    value={weight}
+                    onChange={e => setWeight(e.target.value)}
+                  />
+                  <span className="weight-unit">lbs <PencilIcon size={10} /></span>
+                </div>
               </div>
             </div>
+
             <div className="card">
-              <div className="card-label">Log meal</div>
+              <div className="card-header">
+                <div className="card-title">Meals</div>
+                {pendingCount > 0 && (
+                  <div className="pending-pill"><DotIcon size={5} />{pendingCount} unsynced</div>
+                )}
+              </div>
+              {meals.length === 0
+                ? <div className="meal-empty">No meals logged today</div>
+                : meals.map((m, i) => {
+                    const colors = mealTypeColors[m.type] || mealTypeColors.Lunch;
+                    return (
+                      <div key={i} className="meal-item">
+                        <div className="meal-icon" style={{ background: colors.bg }}>
+                          {m.type === 'Snack'
+                            ? <CupIcon size={15} color={colors.icon} />
+                            : <UtensilsIcon size={15} color={colors.icon} />}
+                        </div>
+                        <div className="meal-body">
+                          <div className="meal-name">{m.name}</div>
+                          <div className="meal-meta">P {m.protein}g · C {m.carbs}g · F {m.fat}g · {m.type}</div>
+                        </div>
+                        <div className="meal-right">
+                          <div className="meal-kcal">{m.calories}</div>
+                          <div className="meal-kcal-label">kcal</div>
+                          {m.synced
+                            ? <div className="synced-check"><CheckIcon size={10} /> synced</div>
+                            : <div className="pending-check"><DotIcon size={7} /> pending</div>}
+                        </div>
+                      </div>
+                    );
+                  })
+              }
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">Add a meal</div>
+              </div>
               {photo ? (
-                <div className="photo-preview"><img src={photo.previewUrl} alt="meal" /><button className="remove-btn" onClick={() => setPhoto(null)}>Remove</button></div>
+                <div className="photo-preview">
+                  <img src={photo.previewUrl} alt="meal" />
+                  <button className="remove-btn" onClick={() => setPhoto(null)}>Remove</button>
+                </div>
               ) : (
                 <div className="photo-zone" onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
                   <input type="file" accept="image/*" onChange={handlePhotoSelect} ref={photoInputRef} />
-                  <div className="photo-zone-label">📷 <span>Attach a photo</span> or drag & drop</div>
+                  <div className="photo-zone-text">
+                    <CameraIcon size={13} />
+                    <span>Attach a photo</span> or drag & drop
+                  </div>
                 </div>
               )}
-              <textarea value={mealInput} onChange={e => setMealInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) logMeal(); }} placeholder="Describe what you ate — or leave blank if photo is clear enough" rows={2} />
+              <textarea
+                value={mealInput}
+                onChange={e => setMealInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) estimateMeal(); }}
+                placeholder={prefillMeal ? `From advisor: ${prefillMeal.name}` : "Describe what you ate — or leave blank if photo is clear enough"}
+                rows={2}
+              />
               <div className="input-row">
-                <select value={mealType} onChange={e => setMealType(e.target.value)}><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option></select>
-                <button className="btn" disabled={mealLoading} onClick={logMeal}>{mealLoading ? 'Working...' : 'Estimate + Log'}</button>
+                <select value={mealType} onChange={e => setMealType(e.target.value)}>
+                  <option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option>
+                </select>
+                <button className="btn-estimate" disabled={mealLoading || (!mealInput.trim() && !photo && !prefillMeal)} onClick={estimateMeal}>
+                  {mealLoading ? 'Working...' : <><span>Estimate</span><ZapIcon size={11} style={{ color: '#ff0838' }} /></>}
+                </button>
               </div>
               {mealStatus.text && <div className={`status status-${mealStatus.type}`}>{mealStatus.text}</div>}
-            </div>
-            <div className="card">
-              <div className="card-label">Daily metrics</div>
-              <div className="inline-inputs">
-                <input type="number" placeholder="lbs" value={weight} onChange={e => setWeight(e.target.value)} step="0.1" />
-                <input type="number" placeholder="steps" value={steps} onChange={e => setSteps(e.target.value)} />
-                <input type="number" placeholder="active cal" value={activeCal} onChange={e => setActiveCal(e.target.value)} />
-              </div>
-              <div className="sync-row"><button className="btn" onClick={syncMetrics}>Sync to Notion</button></div>
-              {metricsStatus.text && <div className={`status status-${metricsStatus.type}`}>{metricsStatus.text}</div>}
+              <div className="divider" />
+              {(pendingCount > 0 || weight) && (
+                <div className="sync-status">
+                  <DotIcon size={7} />
+                  {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''}` : ''}{pendingCount > 0 && weight ? ' + ' : ''}{weight ? 'weight' : ''} pending sync to Notion
+                </div>
+              )}
+              <button className="btn-sync" disabled={syncLoading || (pendingCount === 0 && !weight)} onClick={syncToNotion}>
+                <ArrowUpIcon size={16} />
+                {syncLoading ? 'Syncing...' : 'Sync to Notion'}
+              </button>
+              {syncStatus.text && <div className={`status status-${syncStatus.type}`}>{syncStatus.text}</div>}
             </div>
           </div>
         )}
 
         {tab === 'advisor' && (
           <div className="panel">
-            <div className="card">
-              <div className="card-label">Today so far</div>
-              <div className="ctx-bar">
-                <div className="ctx-item"><div className="ctx-label">Eaten</div><div className="ctx-value">{Math.round(totals.calories)} kcal</div></div>
-                <div className="ctx-item"><div className="ctx-label">Remaining</div><div className="ctx-value">{remaining} kcal</div></div>
-                <div className="ctx-item"><div className="ctx-label">Protein</div><div className="ctx-value">{Math.round(totals.protein)}g</div></div>
-                <div className="ctx-item"><div className="ctx-label">Protein left</div><div className="ctx-value">{proteinLeft}g</div></div>
-              </div>
+            <div className="ctx-bar">
+              <div className="ctx-item"><div className="ctx-label">Eaten</div><div className="ctx-value">{Math.round(totals.calories)} kcal</div></div>
+              <div className="ctx-item"><div className="ctx-label">Remaining</div><div className="ctx-value">{remaining} kcal</div></div>
+              <div className="ctx-item"><div className="ctx-label">Protein</div><div className="ctx-value">{Math.round(totals.protein)}g</div></div>
+              <div className="ctx-item"><div className="ctx-label">Protein left</div><div className="ctx-value">{proteinLeft}g</div></div>
             </div>
+
             <div className="card">
-              <div className="card-label">Advisor</div>
+              <div className="card-header"><div className="card-title">Advisor</div></div>
               <div className="pills">
                 {['suggest', 'pantry', 'checkin', 'recipe'].map(m => (
                   <div key={m} className={`pill ${advisorMode === m ? 'active' : ''}`} onClick={() => setAdvisorMode(m)}>
@@ -323,24 +565,48 @@ export default function Home() {
                 ))}
               </div>
               <div className="chat" ref={chatRef}>
-                {chatHistory.length === 0 && <div className="chat-empty">Ask me what to eat next, what you can make from your kitchen, or how your macros look.</div>}
+                {chatHistory.length === 0 && (
+                  <div className="chat-empty">Ask me what to eat next, what you can make from your kitchen, or how your macros look.</div>
+                )}
                 {chatHistory.map((m, i) => (
-                  <div key={i} className={`msg ${m.role === 'user' ? 'msg-user' : ''}`}>
-                    <div className="msg-role">{m.role === 'user' ? 'You' : 'Advisor'}</div>
-                    <div className="msg-body">{m.content}</div>
+                  <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : ''}`}>
+                    <div className="msg-label">{m.role === 'user' ? 'You' : 'Advisor'}</div>
+                    <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
+                      {m.content}
+                      {m.role === 'assistant' && m.mealData && (
+                        <div>
+                          <button className="log-this-btn" onClick={() => { setPrefillMeal(m.mealData); setTab('log'); }}>
+                            <PlusIcon size={11} /> Log this meal
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
               {showSuggestions && chatHistory.length === 0 && (
                 <div className="suggestions">
-                  {["What should I eat for dinner to stay in deficit?","I have chicken thighs, Greek yogurt, and broccoli — what can I make?","How's my protein looking? What should I prioritize?","Give me a high-protein dinner recipe under 500 calories"].map((s, i) => (
+                  {[
+                    "What should I eat for dinner to stay in deficit?",
+                    "I have chicken thighs, Greek yogurt, and broccoli — what can I make?",
+                    "How's my protein looking? What should I prioritize?",
+                    "Give me a high-protein dinner recipe under 500 calories"
+                  ].map((s, i) => (
                     <button key={i} className="sug-btn" onClick={() => sendAdvisorMessage(s)}>{s}</button>
                   ))}
                 </div>
               )}
               <div className="chat-input-row">
-                <textarea value={advisorInput} onChange={e => setAdvisorInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendAdvisorMessage(); }} placeholder={modePlaceholders[advisorMode]} rows={2} />
-                <button className="btn-send" disabled={advisorLoading} onClick={() => sendAdvisorMessage()}>{advisorLoading ? '...' : 'Send'}</button>
+                <textarea
+                  value={advisorInput}
+                  onChange={e => setAdvisorInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendAdvisorMessage(); }}
+                  placeholder={modePlaceholders[advisorMode]}
+                  rows={2}
+                />
+                <button className="btn-send" disabled={advisorLoading} onClick={() => sendAdvisorMessage()}>
+                  {advisorLoading ? '...' : <><span>Send</span><SendIcon size={10} /></>}
+                </button>
               </div>
               {advisorStatus.text && <div className={`status status-${advisorStatus.type}`}>{advisorStatus.text}</div>}
             </div>
