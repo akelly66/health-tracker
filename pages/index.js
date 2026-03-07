@@ -125,10 +125,12 @@ const styles = `
   .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .card-title { font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--black); }
   .pending-pill { display: flex; align-items: center; gap: 5px; background: #f0ede8; border-radius: 20px; padding: 4px 10px; font-family: var(--mono); font-size: 9px; color: var(--green); letter-spacing: 0.08em; }
-  .meal-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
-  .meal-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .meal-row-wrap { position: relative; overflow: hidden; border-bottom: 1px solid var(--border); }
+  .meal-row-wrap:last-child { border-bottom: none; }
+  .meal-delete-bg { position: absolute; right: 0; top: 0; bottom: 0; width: 80px; background: var(--red); display: flex; align-items: center; justify-content: center; color: white; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none; }
+  .meal-item { display: flex; gap: 12px; padding: 12px 0; align-items: flex-start; background: var(--white); position: relative; transform: translateX(0); will-change: transform; touch-action: pan-y; }
   .meal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .meal-body { flex: 1; }
+  .meal-body { flex: 1; min-width: 0; }
   .meal-name { font-size: 14px; font-weight: 500; line-height: 1.3; margin-bottom: 3px; }
   .meal-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
   .meal-right { text-align: right; flex-shrink: 0; }
@@ -192,6 +194,54 @@ const styles = `
   .btn-send:hover { background: #008a55; }
   .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+
+function SwipeMealRow({ children, onDelete }) {
+  const itemRef = useRef(null);
+  const startX = useRef(0);
+  const currentX = useRef(0);
+  const isDragging = useRef(false);
+  const THRESHOLD = 80;
+
+  function onTouchStart(e) {
+    startX.current = e.touches[0].clientX;
+    isDragging.current = true;
+    if (itemRef.current) itemRef.current.style.transition = 'none';
+  }
+
+  function onTouchMove(e) {
+    if (!isDragging.current) return;
+    const dx = Math.min(0, e.touches[0].clientX - startX.current);
+    currentX.current = dx;
+    if (itemRef.current) itemRef.current.style.transform = `translateX(${dx}px)`;
+  }
+
+  function onTouchEnd() {
+    isDragging.current = false;
+    if (itemRef.current) itemRef.current.style.transition = 'transform 0.2s ease';
+    if (currentX.current <= -THRESHOLD) {
+      if (itemRef.current) itemRef.current.style.transform = `translateX(-100%)`;
+      setTimeout(onDelete, 200);
+    } else {
+      if (itemRef.current) itemRef.current.style.transform = 'translateX(0)';
+    }
+    currentX.current = 0;
+  }
+
+  return (
+    <div className="meal-row-wrap">
+      <div className="meal-delete-bg">Delete</div>
+      <div
+        className="meal-item"
+        ref={itemRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [tab, setTab] = useState('log');
@@ -479,7 +529,7 @@ export default function Home() {
                 : meals.map((m, i) => {
                     const colors = mealTypeColors[m.type] || mealTypeColors.Lunch;
                     return (
-                      <div key={i} className="meal-item">
+                      <SwipeMealRow key={i} onDelete={() => setMeals(prev => prev.filter((_, j) => j !== i))}>
                         <div className="meal-icon" style={{ background: colors.bg }}>
                           {m.type === 'Snack'
                             ? <CupIcon size={15} color={colors.icon} />
@@ -496,7 +546,7 @@ export default function Home() {
                             ? <div className="synced-check"><CheckIcon size={10} /> synced</div>
                             : <div className="pending-check"><DotIcon size={7} /> pending</div>}
                         </div>
-                      </div>
+                      </SwipeMealRow>
                     );
                   })
               }
