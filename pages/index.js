@@ -94,13 +94,12 @@ const styles = `
   }
   body { background: var(--cream); font-family: var(--sans); color: var(--black); min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
   .wrap { display: flex; flex-direction: column; align-items: center; padding: 0 0 60px; }
-  .header { width: 100%; background: var(--green); padding: calc(env(safe-area-inset-top) + 18px) 24px 14px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+  .header { width: 100%; background: var(--green); padding: calc(env(safe-area-inset-top) + 18px) 24px 14px; display: flex; justify-content: space-between; align-items: center; }
   .header-title { font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--pink); display: flex; align-items: center; gap: 8px; }
   .header-right { display: flex; align-items: center; gap: 8px; }
   .header-date { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; text-transform: uppercase; }
-  .tabs { width: 100%; max-width: 560px; display: flex; margin: 0 auto; padding: 0 20px; position: sticky; top: calc(env(safe-area-inset-top) + 57px); z-index: 99; background: var(--cream); box-shadow: 0 1px 0 var(--border); }
-  .tabs::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: calc(env(safe-area-inset-top) + 57px); background: var(--cream); z-index: 98; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
-  .tabs.scrolled::before { opacity: 1; }
+  .sticky-top { position: sticky; top: 0; z-index: 100; width: 100%; }
+  .tabs { width: 100%; max-width: 560px; display: flex; margin: 0 auto; padding: 0 20px; background: var(--cream); }
   .tab { flex: 1; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 0; text-align: center; background: transparent; color: var(--muted); cursor: pointer; border: none; border-bottom: 2px solid var(--border); transition: all 0.15s; }
   .tab.active { color: var(--red); border-bottom: 2px solid var(--red); }
   .panel { width: 100%; max-width: 560px; padding: 20px 20px 0; display: flex; flex-direction: column; gap: 14px; }
@@ -356,16 +355,7 @@ export default function Home() {
     }
   }, [prefillMeal]);
 
-  useEffect(() => {
-    const tabs = document.querySelector('.tabs');
-    const header = document.querySelector('.header');
-    if (!tabs || !header) return;
-    const onScroll = () => {
-      tabs.classList.toggle('scrolled', window.scrollY > header.offsetHeight);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+
 
   function handlePhotoSelect(e) {
     const file = e.target.files[0];
@@ -526,20 +516,21 @@ export default function Home() {
       </Head>
       <style>{styles}</style>
       <div className="wrap">
-        <div className="header">
-          <div className="header-title">
-            <ZapIcon size={18} style={{ color: '#ff0838' }} />
-            Body Log
+        <div className="sticky-top">
+          <div className="header">
+            <div className="header-title">
+              <ZapIcon size={18} style={{ color: '#ff0838' }} />
+              Body Log
+            </div>
+            <div className="header-right">
+              <div className="header-date">{today}</div>
+              <SmileIcon size={16} style={{ color: '#ffc0ff' }} />
+            </div>
           </div>
-          <div className="header-right">
-            <div className="header-date">{today}</div>
-            <SmileIcon size={16} style={{ color: '#ffc0ff' }} />
+          <div className="tabs">
+            <button className={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>Log</button>
+            <button className={`tab ${tab === 'advisor' ? 'active' : ''}`} onClick={() => setTab('advisor')}>Advisor</button>
           </div>
-        </div>
-
-        <div className="tabs">
-          <button className={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>Log</button>
-          <button className={`tab ${tab === 'advisor' ? 'active' : ''}`} onClick={() => setTab('advisor')}>Advisor</button>
         </div>
 
         {tab === 'log' && (
