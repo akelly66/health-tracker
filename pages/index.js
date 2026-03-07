@@ -92,7 +92,7 @@ const styles = `
     --serif: 'Playfair Display', Georgia, serif;
     --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
   }
-  body { background: var(--cream); font-family: var(--sans); color: var(--black); min-height: 100vh; }
+  body { background: var(--cream); font-family: var(--sans); color: var(--black); min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
   .wrap { display: flex; flex-direction: column; align-items: center; padding: 0 0 60px; }
   .header { width: 100%; background: var(--green); padding: 18px 24px 14px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
   .header-title { font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--pink); display: flex; align-items: center; gap: 8px; }
@@ -509,7 +509,7 @@ export default function Home() {
     <>
       <Head>
         <title>Body Log</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       </Head>
       <style>{styles}</style>
       <div className="wrap">
