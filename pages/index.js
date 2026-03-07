@@ -3,7 +3,7 @@ import Head from 'next/head';
 
 const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g';
 const TDEE = 1795;
-const PROTEIN_TARGET = 130;
+const PROTEIN_TARGET = 110;
 
 const ZapIcon = ({ size = 14, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
@@ -221,7 +221,9 @@ export default function Home() {
     async function loadToday() {
       setMealStatus({ text: "Loading today's data...", type: 'loading' });
       try {
-        const res = await fetch('/api/today');
+        const now = new Date();
+        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const res = await fetch(`/api/today?date=${localDate}`);
         const data = await res.json();
         if (!data.found) { setMealStatus({ text: '', type: '' }); return; }
         const restored = (data.meals || []).map(m => ({ ...m, synced: true }));
