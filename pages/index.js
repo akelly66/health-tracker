@@ -589,7 +589,14 @@ export default function Home() {
                 : meals.map((m, i) => {
                     const colors = mealTypeColors[m.type] || mealTypeColors.Lunch;
                     return (
-                      <SwipeMealRow key={i} onDelete={() => setMeals(prev => prev.filter((_, j) => j !== i))}>
+                      <SwipeMealRow key={i} onDelete={() => {
+                        const wasSynced = m.synced;
+                        setMeals(prev => {
+                          const updated = prev.filter((_, j) => j !== i);
+                          if (wasSynced) return updated.map(m => ({ ...m, synced: false }));
+                          return updated;
+                        });
+                      }}>
                         <div className="meal-icon" style={{ background: colors.bg }}>
                           {m.type === 'Snack'
                             ? <CupIcon size={15} color={colors.icon} />
