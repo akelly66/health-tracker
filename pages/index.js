@@ -3,7 +3,7 @@ import Head from 'next/head';
 
 const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g';
 const TDEE = 1795;
-const PROTEIN_TARGET = 110;
+const PROTEIN_TARGET = 130;
 
 const ZapIcon = ({ size = 14, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
@@ -161,31 +161,35 @@ const styles = `
   .status-success { color: var(--green); }
   .status-error { color: var(--red); }
   .status-loading { color: var(--muted); }
-  .ctx-bar { background: #e6f4ec; border: 1px solid #b8dfc8; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .ctx-bar { background: #e6f4ec; border: 1px solid #b8dfc8; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
   .ctx-item { text-align: center; }
-  .ctx-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); margin-bottom: 2px; }
-  .ctx-value { font-family: var(--serif); font-size: 16px; font-weight: 700; color: var(--black); }
-  .pills { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-  .pill { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--cream); color: var(--muted); cursor: pointer; transition: all 0.15s; }
-  .pill.active { border-color: var(--green); background: #e6f4ec; color: var(--green); }
-  .chat { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
+  .ctx-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); margin-bottom: 3px; }
+  .ctx-value { font-family: var(--serif); font-size: 18px; font-weight: 900; color: var(--black); }
+  .pills { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .pill { font-family: var(--mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; padding: 7px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .pill.active { border-color: var(--green); background: #e6f4ec; color: var(--green); font-weight: 600; }
+  .chat { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; min-height: 120px; max-height: 400px; overflow-y: auto; padding-right: 2px; }
   .chat::-webkit-scrollbar { width: 3px; }
   .chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .chat-bubble { padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
-  .chat-bubble.assistant { background: var(--white); border: 1px solid var(--border); border-bottom-left-radius: 4px; white-space: pre-wrap; }
-  .chat-bubble.user { background: var(--green); color: var(--white); border-bottom-right-radius: 4px; font-size: 13px; }
-  .msg-wrap { display: flex; flex-direction: column; }
-  .msg-wrap.user { align-items: flex-end; }
-  .msg-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
-  .msg-wrap.user .msg-label { color: var(--green); text-align: right; }
-  .log-this-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--red); border: 1.5px solid var(--red); border-radius: 20px; padding: 6px 12px; cursor: pointer; background: transparent; }
-  .chat-empty { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 24px 0; line-height: 1.8; }
-  .suggestions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .sug-btn { font-family: var(--sans); font-size: 13px; text-align: left; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--black); cursor: pointer; transition: all 0.15s; }
-  .sug-btn:hover { border-color: var(--green); background: #e6f4ec; }
-  .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
-  .chat-input-row textarea { flex: 1; min-height: 60px; margin: 0; }
-  .btn-send { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 16px; border-radius: 20px; border: none; background: var(--green); color: var(--pink); cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .msg-wrap { display: flex; flex-direction: column; max-width: 88%; }
+  .msg-wrap.user { align-items: flex-end; margin-left: auto; }
+  .msg-wrap.assistant { align-items: flex-start; margin-right: auto; }
+  .chat-bubble { padding: 13px 16px; border-radius: 18px; font-size: 14px; line-height: 1.65; }
+  .chat-bubble.assistant { background: var(--white); border: 1px solid var(--border); border-bottom-left-radius: 4px; white-space: pre-wrap; color: var(--black); }
+  .chat-bubble.user { background: var(--green); color: var(--white); border-bottom-right-radius: 4px; font-size: 14px; }
+  .log-this-btn { display: inline-flex; width: fit-content; align-items: center; gap: 6px; margin-top: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--red); border: 1.5px solid var(--red); border-radius: 20px; padding: 7px 13px; cursor: pointer; background: transparent; transition: background 0.15s; }
+  .log-this-btn:hover { background: #fff0f2; }
+  .chat-empty { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 32px 16px; line-height: 2; }
+  .suggestions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .sug-btn { font-family: var(--sans); font-size: 13.5px; text-align: left; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--white); color: var(--black); cursor: pointer; transition: all 0.15s; line-height: 1.4; }
+  .sug-btn:hover { border-color: var(--green); background: #f0faf5; }
+  .chat-input-area { background: #fbf0f5; border: 1.5px solid #f0dde8; border-radius: 12px; padding: 10px 12px; margin-bottom: 0; }
+  .chat-input-area textarea { width: 100%; min-height: 52px; margin: 0; background: transparent; border: none; outline: none; font-family: var(--sans); font-size: 14px; color: var(--black); resize: none; padding: 0; }
+  .chat-input-area textarea::placeholder { color: #b0a0aa; }
+  .chat-input-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .mode-select { font-family: var(--mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; background: transparent; border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 10px; color: var(--muted); cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; }
+  .btn-send { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 18px; border-radius: 20px; border: none; background: var(--green); color: var(--pink); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn-send:hover { background: #008a55; }
   .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
@@ -556,21 +560,14 @@ export default function Home() {
             </div>
 
             <div className="card">
-              <div className="card-header"><div className="card-title">Advisor</div></div>
-              <div className="pills">
-                {['suggest', 'pantry', 'checkin', 'recipe'].map(m => (
-                  <div key={m} className={`pill ${advisorMode === m ? 'active' : ''}`} onClick={() => setAdvisorMode(m)}>
-                    {m === 'suggest' ? 'Meal suggestions' : m === 'pantry' ? 'Pantry mode' : m === 'checkin' ? 'Check-in' : 'Recipe + macros'}
-                  </div>
-                ))}
-              </div>
               <div className="chat" ref={chatRef}>
                 {chatHistory.length === 0 && (
-                  <div className="chat-empty">Ask me what to eat next, what you can make from your kitchen, or how your macros look.</div>
+                  <div className="chat-empty">
+                    Hey! Ask me what to eat next, what you can{'\n'}make from your kitchen, or how your macros look.{'\n'}You have <strong>{remaining} kcal</strong> and <strong>{proteinLeft}g protein</strong> left.
+                  </div>
                 )}
                 {chatHistory.map((m, i) => (
-                  <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : ''}`}>
-                    <div className="msg-label">{m.role === 'user' ? 'You' : 'Advisor'}</div>
+                  <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : 'assistant'}`}>
                     <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
                       {m.content}
                       {m.role === 'assistant' && m.mealData && (
@@ -583,20 +580,16 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
+                {advisorLoading && (
+                  <div className="msg-wrap assistant">
+                    <div className="chat-bubble assistant" style={{ color: '#aaa', fontStyle: 'italic' }}>Thinking...</div>
+                  </div>
+                )}
               </div>
-              {showSuggestions && chatHistory.length === 0 && (
-                <div className="suggestions">
-                  {[
-                    "What should I eat for dinner to stay in deficit?",
-                    "I have chicken thighs, Greek yogurt, and broccoli — what can I make?",
-                    "How's my protein looking? What should I prioritize?",
-                    "Give me a high-protein dinner recipe under 500 calories"
-                  ].map((s, i) => (
-                    <button key={i} className="sug-btn" onClick={() => sendAdvisorMessage(s)}>{s}</button>
-                  ))}
-                </div>
-              )}
-              <div className="chat-input-row">
+
+
+
+              <div className="chat-input-area">
                 <textarea
                   value={advisorInput}
                   onChange={e => setAdvisorInput(e.target.value)}
@@ -604,11 +597,23 @@ export default function Home() {
                   placeholder={modePlaceholders[advisorMode]}
                   rows={2}
                 />
-                <button className="btn-send" disabled={advisorLoading} onClick={() => sendAdvisorMessage()}>
-                  {advisorLoading ? '...' : <><span>Send</span><SendIcon size={10} /></>}
-                </button>
+                <div className="chat-input-bottom">
+                  <select
+                    className="mode-select"
+                    value={advisorMode}
+                    onChange={e => setAdvisorMode(e.target.value)}
+                  >
+                    <option value="suggest">Suggest a meal</option>
+                    <option value="pantry">Pantry mode</option>
+                    <option value="checkin">Check-in</option>
+                    <option value="recipe">Recipe + macros</option>
+                  </select>
+                  <button className="btn-send" disabled={advisorLoading} onClick={() => sendAdvisorMessage()}>
+                    Send <SendIcon size={10} />
+                  </button>
+                </div>
               </div>
-              {advisorStatus.text && <div className={`status status-${advisorStatus.type}`}>{advisorStatus.text}</div>}
+              {advisorStatus.text && !advisorLoading && <div className={`status status-${advisorStatus.type}`}>{advisorStatus.text}</div>}
             </div>
           </div>
         )}
