@@ -3,7 +3,7 @@ export default async function handler(req, res) {
 
   const { message, totals, meals, advisorMode, chatHistory } = req.body;
   const TDEE = 1795;
-  const PROTEIN_TARGET = 130;
+  const PROTEIN_TARGET = 110;
 
   const remaining = Math.max(0, TDEE - Math.round(totals.calories));
   const proteinLeft = Math.max(0, PROTEIN_TARGET - Math.round(totals.protein));
