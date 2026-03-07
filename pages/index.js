@@ -94,14 +94,14 @@ const styles = `
   }
   body { background: var(--cream); font-family: var(--sans); color: var(--black); min-height: 100vh; }
   .wrap { display: flex; flex-direction: column; align-items: center; padding: 0 0 60px; }
-  .header { width: 100%; background: var(--green); padding: 18px 24px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header { width: 100%; background: var(--green); padding: 18px 24px 14px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
   .header-title { font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--pink); display: flex; align-items: center; gap: 8px; }
   .header-right { display: flex; align-items: center; gap: 8px; }
   .header-date { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; text-transform: uppercase; }
-  .tabs { width: 100%; max-width: 560px; display: flex; margin: 0 auto 20px; padding: 0 20px; }
+  .tabs { width: 100%; max-width: 560px; display: flex; margin: 0 auto; padding: 0 20px; position: sticky; top: 57px; z-index: 99; background: var(--cream); }
   .tab { flex: 1; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 0; text-align: center; background: transparent; color: var(--muted); cursor: pointer; border: none; border-bottom: 2px solid var(--border); transition: all 0.15s; }
   .tab.active { color: var(--red); border-bottom: 2px solid var(--red); }
-  .panel { width: 100%; max-width: 560px; padding: 0 20px; display: flex; flex-direction: column; }
+  .panel { width: 100%; max-width: 560px; padding: 20px 20px 0; display: flex; flex-direction: column; gap: 14px; }
   .today-card { background: var(--green); border-radius: 8px; padding: 20px 20px 16px; margin-bottom: 14px; }
   .today-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 20px; }
   .macros-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; margin-bottom: 12px; align-items: flex-end; }
@@ -196,39 +196,84 @@ const styles = `
 `;
 
 function SwipeMealRow({ children, onDelete }) {
+  const wrapRef = useRef(null);
   const itemRef = useRef(null);
   const startX = useRef(0);
   const currentX = useRef(0);
   const isDragging = useRef(false);
   const THRESHOLD = 80;
 
-  function onTouchStart(e) {
-    startX.current = e.touches[0].clientX;
-    isDragging.current = true;
-    if (itemRef.current) itemRef.current.style.transition = 'none';
+  function collapse() {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    // Slide item fully out first
+    itemRef.current.style.transition = 'transform 0.2s ease';
+    itemRef.current.style.transform = 'translateX(-100%)';
+    // Then collapse height to 0
+    wrap.style.transition = 'max-height 0.25s ease 0.15s, opacity 0.2s ease 0.15s';
+    wrap.style.overflow = 'hidden';
+    wrap.style.maxHeight = wrap.offsetHeight + 'px';
+    requestAnimationFrame(() => {
+      wrap.style.maxHeight = '0';
+      wrap.style.opacity = '0';
+    });
+    setTimeout(onDelete, 400);
   }
 
+  // Touch handlers
+  function onTouchStart(e) {
+    startX.current = e.touches[0].clientX;
+    currentX.current = 0;
+    isDragging.current = true;
+    itemRef.current.style.transition = 'none';
+  }
   function onTouchMove(e) {
     if (!isDragging.current) return;
     const dx = Math.min(0, e.touches[0].clientX - startX.current);
     currentX.current = dx;
-    if (itemRef.current) itemRef.current.style.transform = `translateX(${dx}px)`;
+    itemRef.current.style.transform = `translateX(${dx}px)`;
   }
-
   function onTouchEnd() {
     isDragging.current = false;
-    if (itemRef.current) itemRef.current.style.transition = 'transform 0.2s ease';
     if (currentX.current <= -THRESHOLD) {
-      if (itemRef.current) itemRef.current.style.transform = `translateX(-100%)`;
-      setTimeout(onDelete, 200);
+      collapse();
     } else {
-      if (itemRef.current) itemRef.current.style.transform = 'translateX(0)';
+      itemRef.current.style.transition = 'transform 0.2s ease';
+      itemRef.current.style.transform = 'translateX(0)';
+    }
+    currentX.current = 0;
+  }
+
+  // Mouse handlers for desktop
+  function onMouseDown(e) {
+    startX.current = e.clientX;
+    currentX.current = 0;
+    isDragging.current = true;
+    itemRef.current.style.transition = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+  function onMouseMove(e) {
+    if (!isDragging.current) return;
+    const dx = Math.min(0, e.clientX - startX.current);
+    currentX.current = dx;
+    itemRef.current.style.transform = `translateX(${dx}px)`;
+  }
+  function onMouseUp() {
+    isDragging.current = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    if (currentX.current <= -THRESHOLD) {
+      collapse();
+    } else {
+      itemRef.current.style.transition = 'transform 0.2s ease';
+      itemRef.current.style.transform = 'translateX(0)';
     }
     currentX.current = 0;
   }
 
   return (
-    <div className="meal-row-wrap">
+    <div className="meal-row-wrap" ref={wrapRef}>
       <div className="meal-delete-bg">Delete</div>
       <div
         className="meal-item"
@@ -236,6 +281,7 @@ function SwipeMealRow({ children, onDelete }) {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
       >
         {children}
       </div>
@@ -400,6 +446,7 @@ export default function Home() {
         body: JSON.stringify(payload)
       });
       setMeals(prev => prev.map(m => ({ ...m, synced: true })));
+      setWeight('');
       setSyncStatus({ text: '✓ Synced to Notion', type: 'success' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 3000);
     } catch (err) {
@@ -424,7 +471,20 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setChatHistory(h => [...h, { role: 'assistant', content: data.reply, mealData: data.mealData || null, mealOptions: data.mealOptions || null }]);
+
+      // If advisor wants to log a meal directly, add it to meals
+      if (data.action === 'log_meal' && data.mealData) {
+        const mealToLog = { ...data.mealData, type: mealType, synced: false };
+        setMeals(prev => [...prev, mealToLog]);
+      }
+
+      setChatHistory(h => [...h, {
+        role: 'assistant',
+        content: data.reply,
+        mealData: data.mealData || null,
+        mealOptions: data.mealOptions || null,
+        action: data.action || null
+      }]);
       setAdvisorStatus({ text: '', type: '' });
     } catch (err) {
       setAdvisorStatus({ text: `Error: ${err.message}`, type: 'error' });
@@ -629,7 +689,12 @@ export default function Home() {
                             .replace(/\n/g, '<br/>')
                         }} />
                       )}
-                      {m.role === 'assistant' && m.mealData && (
+                      {m.role === 'assistant' && m.action === 'log_meal' && (
+                        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--green)' }}>
+                          <CheckIcon size={10} /> Logged to your list
+                        </div>
+                      )}
+                      {m.role === 'assistant' && m.mealData && m.action !== 'log_meal' && (
                         <div>
                           <button className="log-this-btn" onClick={() => { setPrefillMeal(m.mealData); setTab('log'); }}>
                             <PlusIcon size={11} /> Log this meal
