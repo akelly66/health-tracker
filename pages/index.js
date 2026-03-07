@@ -3,7 +3,7 @@ import Head from 'next/head';
 
 const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g';
 const TDEE = 1795;
-const PROTEIN_TARGET = 110;
+const PROTEIN_TARGET = 130;
 
 const ZapIcon = ({ size = 14, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
@@ -216,13 +216,13 @@ export default function Home() {
   const photoInputRef = useRef(null);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const _now = new Date();
+  const localDate = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
 
   useEffect(() => {
     async function loadToday() {
       setMealStatus({ text: "Loading today's data...", type: 'loading' });
       try {
-        const now = new Date();
-        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const res = await fetch(`/api/today?date=${localDate}`);
         const data = await res.json();
         if (!data.found) { setMealStatus({ text: '', type: '' }); return; }
@@ -336,7 +336,7 @@ export default function Home() {
         carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat
       }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
       const payload = {
-        date: new Date().toISOString().split('T')[0],
+        date: localDate,
         calories: Math.round(currentTotals.calories),
         protein: Math.round(currentTotals.protein),
         carbs: Math.round(currentTotals.carbs),
@@ -635,5 +635,7 @@ export default function Home() {
         )}
       </div>
     </>
+  );
+}
   );
 }
