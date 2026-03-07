@@ -372,7 +372,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setChatHistory(h => [...h, { role: 'assistant', content: data.reply, mealData: data.mealData || null }]);
+      setChatHistory(h => [...h, { role: 'assistant', content: data.reply, mealData: data.mealData || null, mealOptions: data.mealOptions || null }]);
       setAdvisorStatus({ text: '', type: '' });
     } catch (err) {
       setAdvisorStatus({ text: `Error: ${err.message}`, type: 'error' });
@@ -569,7 +569,14 @@ export default function Home() {
                 {chatHistory.map((m, i) => (
                   <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : 'assistant'}`}>
                     <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
-                      {m.content}
+                      {m.role === 'user' ? m.content : (
+                        <span dangerouslySetInnerHTML={{ __html:
+                          m.content
+                            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\n/g, '<br/>')
+                        }} />
+                      )}
                       {m.role === 'assistant' && m.mealData && (
                         <div>
                           <button className="log-this-btn" onClick={() => { setPrefillMeal(m.mealData); setTab('log'); }}>
@@ -577,6 +584,13 @@ export default function Home() {
                           </button>
                         </div>
                       )}
+                      {m.role === 'assistant' && m.mealOptions && m.mealOptions.map((opt, oi) => (
+                        <div key={oi}>
+                          <button className="log-this-btn" onClick={() => { setPrefillMeal(opt); setTab('log'); }}>
+                            <PlusIcon size={11} /> Log: {opt.name}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
