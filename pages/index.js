@@ -3,7 +3,7 @@ import Head from 'next/head';
 
 const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g';
 const TDEE = 1795;
-const PROTEIN_TARGET = 130;
+const PROTEIN_TARGET = 110;
 
 const ZapIcon = ({ size = 14, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
