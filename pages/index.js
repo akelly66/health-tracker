@@ -300,6 +300,7 @@ export default function Home() {
   const [mealLoading, setMealLoading] = useState(false);
   const [mealStatus, setMealStatus] = useState({ text: '', type: '' });
   const [weight, setWeight] = useState('');
+  const [activeCalories, setActiveCalories] = useState('');
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ text: '', type: '' });
   const [advisorMode, setAdvisorMode] = useState('suggest');
@@ -331,7 +332,7 @@ export default function Home() {
         setMealStatus({ text: `✓ Restored today's data (${Math.round(data.calories)} kcal)`, type: 'success' });
         setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
       } catch {
-        setMealStatus({ text: '', type: '' });
+        setMealStatus({ text: "⚠ Couldn't load today's data", type: 'error' });
       }
     }
     loadToday();
@@ -426,6 +427,11 @@ export default function Home() {
   }
 
   async function syncToNotion() {
+    if (meals.length === 0 && !weight && !activeCalories) {
+      setSyncStatus({ text: 'Nothing to sync', type: 'error' });
+      setTimeout(() => setSyncStatus({ text: '', type: '' }), 2000);
+      return;
+    }
     setSyncLoading(true);
     setSyncStatus({ text: 'Syncing to Notion...', type: 'loading' });
     try {
@@ -445,6 +451,7 @@ export default function Home() {
         meal_log: mealLogText,
       };
       if (weight) payload.weight = parseFloat(weight);
+      if (activeCalories) payload.active_calories = parseInt(activeCalories);
       await fetch(MAKE_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -452,6 +459,7 @@ export default function Home() {
       });
       setMeals(prev => prev.map(m => ({ ...m, synced: true })));
       setWeight('');
+      setActiveCalories('');
       setSyncStatus({ text: '✓ Synced to Notion', type: 'success' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 3000);
     } catch (err) {
@@ -584,9 +592,24 @@ export default function Home() {
                   <span className="weight-unit">lbs <PencilIcon size={10} /></span>
                 </div>
               </div>
+              <div className="weight-row">
+                <div className="weight-left">
+                  <div className="weight-icon">🔥</div>
+                  <div className="weight-label">Active calories</div>
+                </div>
+                <div className="weight-input-wrap">
+                  <input
+                    className="weight-input"
+                    type="number"
+                    placeholder="—"
+                    step="1"
+                    value={activeCalories}
+                    onChange={e => setActiveCalories(e.target.value)}
+                  />
+                  <span className="weight-unit">kcal <PencilIcon size={10} /></span>
+                </div>
+              </div>
             </div>
-
-            <div className="card">
               <div className="card-header">
                 <div className="card-title">Meals</div>
                 {pendingCount > 0 && (
@@ -663,13 +686,13 @@ export default function Home() {
               </div>
               {mealStatus.text && <div className={`status status-${mealStatus.type}`}>{mealStatus.text}</div>}
               <div className="divider" />
-              {(pendingCount > 0 || weight) && (
+              {(pendingCount > 0 || weight || activeCalories) && (
                 <div className="sync-status">
                   <DotIcon size={7} />
-                  {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''}` : ''}{pendingCount > 0 && weight ? ' + ' : ''}{weight ? 'weight' : ''} pending sync to Notion
+                  {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''}` : ''}{pendingCount > 0 && (weight || activeCalories) ? ' + ' : ''}{weight ? 'weight' : ''}{weight && activeCalories ? ' + ' : ''}{activeCalories ? 'active cals' : ''} pending sync to Notion
                 </div>
               )}
-              <button className="btn-sync" disabled={syncLoading || (pendingCount === 0 && !weight)} onClick={syncToNotion}>
+              <button className="btn-sync" disabled={syncLoading || (pendingCount === 0 && !weight && !activeCalories)} onClick={syncToNotion}>
                 <ArrowUpIcon size={16} />
                 {syncLoading ? 'Syncing...' : 'Sync to Notion'}
               </button>
