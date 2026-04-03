@@ -1,9 +1,62 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
+import dynamic from 'next/dynamic';
+import { mealsToMealLogText, parseMealLogText } from '../lib/mealLog';
 
-const MAKE_WEBHOOK = 'https://hook.us2.make.com/3ppntn8yxn2jwjo2xp6rm18ku5gl5x2g';
-const TDEE = 1795;
+const HistoryCharts = dynamic(() => import('../components/HistoryCharts'), { ssr: false });
+
+const TDEE = 1600;
 const PROTEIN_TARGET = 110;
+
+const GREETINGS = [
+  'Rise and log. The scale is waiting and it has no chill.',
+  'Still committed to the bit? How much do you weigh today?',
+  'Another day, another opportunity to demolish your protein goal.',
+  "Your future self is watching. She looks great, btw. Weight check?",
+  'Hot girl walk starts with knowing your starting weight.',
+  "The data doesn't lie. Unfortunately. How are we looking today?",
+  'Abs are made in the kitchen, logged in this app.',
+  "You showed up. That's already a win. Now step on the scale.",
+  'New day, new macros. How much do you weigh right now?',
+];
+
+function getLocalDateString(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function addDaysToYMD(ymd, delta) {
+  const [y, m, day] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, day);
+  dt.setDate(dt.getDate() + delta);
+  return getLocalDateString(dt);
+}
+
+function lastNDatesFrom(ymd, n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) out.push(addDaysToYMD(ymd, -i));
+  return out;
+}
+
+function normalizeRowDate(d) {
+  if (!d) return '';
+  if (typeof d === 'string') return d.slice(0, 10);
+  try {
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return String(d).slice(0, 10);
+  }
+}
+
+function editDayLabel(viewDateStr, todayStr) {
+  if (viewDateStr === todayStr) return 'Today';
+  if (viewDateStr === addDaysToYMD(todayStr, -1)) return 'Yesterday';
+  const [y, m, day] = viewDateStr.split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 const ZapIcon = ({ size = 14, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
@@ -194,6 +247,27 @@ const styles = `
   .btn-send { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 18px; border-radius: 20px; border: none; background: var(--green); color: var(--pink); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   .btn-send:hover { background: #008a55; }
   .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .edit-banner { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; padding: 10px 14px; border-radius: 8px; margin-bottom: 4px; background: #fff8e1; color: #b45309; text-align: center; }
+  .date-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; font-family: var(--mono); font-size: 11px; color: var(--black); }
+  .date-nav-btn { background: var(--white); border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; color: var(--black); line-height: 1; }
+  .date-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .date-nav-label { min-width: 120px; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
+  .greeting-overlay { position: fixed; inset: 0; z-index: 200; background: var(--cream); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px 24px calc(28px + env(safe-area-inset-bottom)); }
+  .greeting-text { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--black); text-align: center; line-height: 1.45; max-width: 340px; margin-bottom: 28px; }
+  .greeting-field { width: 100%; max-width: 320px; margin-bottom: 16px; }
+  .greeting-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .greeting-input { width: 100%; font-family: var(--serif); font-size: 20px; font-weight: 700; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); }
+  .greeting-go { margin-top: 20px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 14px 28px; border-radius: 8px; border: none; background: var(--green); color: var(--pink); cursor: pointer; }
+  .history-acc { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 16px; }
+  .history-row { border-radius: 8px; border: 1px solid var(--border); background: var(--white); overflow: hidden; }
+  .history-row.muted { opacity: 0.45; pointer-events: none; }
+  .history-row-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer; font-family: var(--mono); font-size: 11px; }
+  .history-row-head span.chev { transition: transform 0.2s; display: inline-block; margin-left: 8px; }
+  .history-row-head.open span.chev { transform: rotate(90deg); }
+  .history-row-body { padding: 0 14px 14px; border-top: 1px solid var(--border); font-size: 13px; }
+  .history-meal-line { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .history-summary-card { background: var(--white); border-radius: 8px; padding: 16px; border: 1px solid var(--border); margin-bottom: 16px; font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--black); }
+  .history-summary-card h3 { font-family: var(--serif); font-size: 18px; margin-bottom: 10px; }
 `;
 
 function SwipeMealRow({ children, onDelete }) {
@@ -313,30 +387,101 @@ export default function Home() {
   const chatRef = useRef(null);
   const photoInputRef = useRef(null);
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const _now = new Date();
-  const localDate = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+  const [displayDate, setDisplayDate] = useState('');
+  const [viewDate, setViewDate] = useState(() => getLocalDateString());
+  const todayDate = getLocalDateString();
+
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [historyExpanded, setHistoryExpanded] = useState(null);
+
+  const [greetingOpen, setGreetingOpen] = useState(false);
+  const [greetingLine, setGreetingLine] = useState('');
+  const [greetingWeightInput, setGreetingWeightInput] = useState('');
+  const [greetingYesterdayBurn, setGreetingYesterdayBurn] = useState('');
+  const [greetingShowYesterdayBurn, setGreetingShowYesterdayBurn] = useState(false);
+  const [greetingBusy, setGreetingBusy] = useState(false);
 
   useEffect(() => {
-    async function loadToday() {
-      setMealStatus({ text: "Loading today's data...", type: 'loading' });
-      try {
-        const res = await fetch(`/api/today?date=${localDate}`, {
-          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        });
-        const data = await res.json();
-        if (!data.found) { setMealStatus({ text: '', type: '' }); return; }
-        const restored = (data.meals || []).map(m => ({ ...m, synced: true }));
-        setMeals(restored);
-        setTotals({ calories: data.calories, protein: data.protein, carbs: data.carbs, fat: data.fat });
-        setMealStatus({ text: `✓ Restored today's data (${Math.round(data.calories)} kcal)`, type: 'success' });
-        setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
-      } catch {
-        setMealStatus({ text: "⚠ Couldn't load today's data", type: 'error' });
-      }
-    }
-    loadToday();
+    setDisplayDate(
+      new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    );
   }, []);
+
+  const loadDay = useCallback(async (dateStr) => {
+    setMealStatus({ text: 'Loading day…', type: 'loading' });
+    try {
+      const res = await fetch(`/api/today?date=${dateStr}`, {
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
+      const data = await res.json();
+      if (!data.found) {
+        setMeals([]);
+        setTotals({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+        setWeight('');
+        setActiveCalories('');
+        setMealStatus({ text: '', type: '' });
+        return;
+      }
+      const restored = (data.meals || []).map((m) => ({ ...m, synced: true }));
+      setMeals(restored);
+      if (restored.length === 0) {
+        setTotals({
+          calories: data.calories || 0,
+          protein: data.protein || 0,
+          carbs: data.carbs || 0,
+          fat: data.fat || 0,
+        });
+      }
+      setWeight(data.weight != null ? String(data.weight) : '');
+      setActiveCalories(data.active_calories != null ? String(data.active_calories) : '');
+      setMealStatus({
+        text: `✓ Loaded (${Math.round(data.calories)} kcal)`,
+        type: 'success',
+      });
+      setTimeout(() => setMealStatus({ text: '', type: '' }), 2500);
+    } catch {
+      setMealStatus({ text: "⚠ Couldn't load data", type: 'error' });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDay(viewDate);
+  }, [viewDate, loadDay]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = getLocalDateString();
+    if (localStorage.getItem('last_greeted') === t) return;
+    (async () => {
+      const y = addDaysToYMD(t, -1);
+      const [tr, yr] = await Promise.all([
+        fetch(`/api/today?date=${t}`),
+        fetch(`/api/today?date=${y}`),
+      ]);
+      const todayData = await tr.json();
+      const yestData = await yr.json();
+      setGreetingLine(GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
+      if (todayData.found && todayData.weight != null) {
+        setGreetingWeightInput(String(todayData.weight));
+      }
+      const needY = yestData.found && yestData.active_calories == null;
+      setGreetingShowYesterdayBurn(needY);
+      setGreetingOpen(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (tab !== 'history') return;
+    (async () => {
+      try {
+        const r = await fetch('/api/history?days=60');
+        const j = await r.json();
+        setHistoryEntries(j.entries || []);
+      } catch {
+        setHistoryEntries([]);
+      }
+    })();
+  }, [tab]);
 
   useEffect(() => {
     if (meals.length === 0) return;
@@ -426,24 +571,78 @@ export default function Home() {
     setMealLoading(false);
   }
 
-  async function syncToNotion() {
+  async function completeGreeting() {
+    const t = getLocalDateString();
+    setGreetingBusy(true);
+    try {
+      const tr = await fetch(`/api/today?date=${t}`);
+      const td = await tr.json();
+      const payloadToday = {
+        date: t,
+        calories: td.found ? Math.round(td.calories) : 0,
+        protein: td.found ? Math.round(td.protein) : 0,
+        carbs: td.found ? Math.round(td.carbs) : 0,
+        fat: td.found ? Math.round(td.fat) : 0,
+        meal_log: td.found && td.meal_log != null ? td.meal_log : '',
+      };
+      if (greetingWeightInput) payloadToday.weight = parseFloat(greetingWeightInput);
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadToday),
+      });
+
+      if (greetingShowYesterdayBurn && greetingYesterdayBurn) {
+        const y = addDaysToYMD(t, -1);
+        const yr = await fetch(`/api/today?date=${y}`);
+        const yd = await yr.json();
+        if (yd.found) {
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              date: y,
+              calories: Math.round(yd.calories),
+              protein: Math.round(yd.protein),
+              carbs: Math.round(yd.carbs),
+              fat: Math.round(yd.fat),
+              meal_log: yd.meal_log || '',
+              active_calories: parseInt(greetingYesterdayBurn, 10),
+            }),
+          });
+        }
+      }
+
+      localStorage.setItem('last_greeted', t);
+      setGreetingOpen(false);
+      await loadDay(viewDate);
+    } catch (e) {
+      console.error(e);
+    }
+    setGreetingBusy(false);
+  }
+
+  async function syncToServer() {
     if (meals.length === 0 && !weight && !activeCalories) {
       setSyncStatus({ text: 'Nothing to sync', type: 'error' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 2000);
       return;
     }
     setSyncLoading(true);
-    setSyncStatus({ text: 'Syncing to Notion...', type: 'loading' });
+    setSyncStatus({ text: 'Saving…', type: 'loading' });
     try {
-      const mealLogText = meals.map(m =>
-        `${m.type}: ${m.name} — ${m.calories} kcal | P${m.protein}g C${m.carbs}g F${m.fat}g`
-      ).join('\n');
-      const currentTotals = meals.reduce((acc, m) => ({
-        calories: acc.calories + m.calories, protein: acc.protein + m.protein,
-        carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat
-      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+      const mealLogText = mealsToMealLogText(meals);
+      const currentTotals = meals.reduce(
+        (acc, m) => ({
+          calories: acc.calories + m.calories,
+          protein: acc.protein + m.protein,
+          carbs: acc.carbs + m.carbs,
+          fat: acc.fat + m.fat,
+        }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
+      );
       const payload = {
-        date: localDate,
+        date: viewDate,
         calories: Math.round(currentTotals.calories),
         protein: Math.round(currentTotals.protein),
         carbs: Math.round(currentTotals.carbs),
@@ -451,16 +650,17 @@ export default function Home() {
         meal_log: mealLogText,
       };
       if (weight) payload.weight = parseFloat(weight);
-      if (activeCalories) payload.active_calories = parseInt(activeCalories);
-      await fetch(MAKE_WEBHOOK, {
+      if (activeCalories) payload.active_calories = parseInt(activeCalories, 10);
+      const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      setMeals(prev => prev.map(m => ({ ...m, synced: true })));
+      if (!res.ok) throw new Error((await res.json()).error || 'Sync failed');
+      setMeals((prev) => prev.map((m) => ({ ...m, synced: true })));
       setWeight('');
       setActiveCalories('');
-      setSyncStatus({ text: '✓ Synced to Notion', type: 'success' });
+      setSyncStatus({ text: '✓ Saved', type: 'success' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 3000);
     } catch (err) {
       setSyncStatus({ text: `Error: ${err.message}`, type: 'error' });
@@ -511,6 +711,34 @@ export default function Home() {
   const proteinLeft = Math.max(0, PROTEIN_TARGET - Math.round(totals.protein));
   const pendingCount = meals.filter(m => !m.synced).length;
 
+  const historyByDate = Object.fromEntries(
+    historyEntries.map((e) => [normalizeRowDate(e.date), e])
+  );
+  const last7 = lastNDatesFrom(todayDate, 7);
+  const weekSlots = last7.map((d) => ({ date: d, row: historyByDate[d] || null }));
+  const withData = weekSlots.filter((s) => s.row);
+  const avgWeekCal =
+    withData.length > 0
+      ? Math.round(
+          withData.reduce((a, s) => a + (Number(s.row.calories) || 0), 0) / withData.length
+        )
+      : 0;
+  const avgWeekProt =
+    withData.length > 0
+      ? Math.round(
+          withData.reduce((a, s) => a + (Number(s.row.protein) || 0), 0) / withData.length
+        )
+      : 0;
+  const totalDeficit = withData.reduce((a, s) => {
+    const net = (Number(s.row.calories) || 0) - (Number(s.row.active_calories) || 0);
+    return a + (TDEE - net);
+  }, 0);
+  const daysProteinHit = withData.filter((s) => (Number(s.row.protein) || 0) >= PROTEIN_TARGET).length;
+  const daysUnderTdee = withData.filter((s) => {
+    const net = (Number(s.row.calories) || 0) - (Number(s.row.active_calories) || 0);
+    return net <= TDEE;
+  }).length;
+
   const modePlaceholders = {
     suggest: "What should I eat next?",
     pantry: "Tell me what ingredients you have...",
@@ -525,6 +753,38 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       </Head>
       <style>{styles}</style>
+      {greetingOpen && (
+        <div className="greeting-overlay">
+          <div className="greeting-text">{greetingLine}</div>
+          <div className="greeting-field">
+            <div className="greeting-label">Weight (lbs)</div>
+            <input
+              className="greeting-input"
+              type="number"
+              step="0.1"
+              placeholder="—"
+              value={greetingWeightInput}
+              onChange={(e) => setGreetingWeightInput(e.target.value)}
+            />
+          </div>
+          {greetingShowYesterdayBurn && (
+            <div className="greeting-field">
+              <div className="greeting-label">Yesterday&apos;s active calories / Forgot to log your burn? 🔥</div>
+              <input
+                className="greeting-input"
+                type="number"
+                step="1"
+                placeholder="kcal"
+                value={greetingYesterdayBurn}
+                onChange={(e) => setGreetingYesterdayBurn(e.target.value)}
+              />
+            </div>
+          )}
+          <button type="button" className="greeting-go" disabled={greetingBusy} onClick={completeGreeting}>
+            {greetingBusy ? 'Saving…' : "Let's go →"}
+          </button>
+        </div>
+      )}
       <div className="wrap">
         <div className="sticky-top">
           <div className="header">
@@ -533,23 +793,46 @@ export default function Home() {
               Body Log
             </div>
             <div className="header-right">
-              <div className="header-date">{today}</div>
-              <a href="https://www.notion.so/ltng/Fitness-Tracker-2953044a1af9806c82a4dd71b72b72e2" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', color: '#ffc0ff', opacity: 0.85 }} title="Open in Notion">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/></svg>
-              </a>
+              <div className="header-date">{displayDate}</div>
               <SmileIcon size={16} style={{ color: '#ffc0ff' }} />
             </div>
           </div>
           <div className="tabs">
             <button className={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>Log</button>
             <button className={`tab ${tab === 'advisor' ? 'active' : ''}`} onClick={() => setTab('advisor')}>Advisor</button>
+            <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>History</button>
           </div>
         </div>
 
         {tab === 'log' && (
           <div className="panel">
+            {viewDate !== todayDate && (
+              <div className="edit-banner">
+                Editing {new Date(viewDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} — not today
+              </div>
+            )}
+            <div className="date-nav">
+              <button
+                type="button"
+                className="date-nav-btn"
+                aria-label="Previous day"
+                onClick={() => setViewDate((d) => addDaysToYMD(d, -1))}
+              >
+                ‹
+              </button>
+              <span className="date-nav-label">{editDayLabel(viewDate, todayDate)}</span>
+              <button
+                type="button"
+                className="date-nav-btn"
+                aria-label="Next day"
+                disabled={viewDate >= todayDate}
+                onClick={() => setViewDate((d) => addDaysToYMD(d, 1))}
+              >
+                ›
+              </button>
+            </div>
             <div className="today-card">
-              <div className="today-label">Today's intake</div>
+              <div className="today-label">{viewDate === todayDate ? "Today's intake" : "This day's intake"}</div>
               <div className="macros-row">
                 <div className="macro-cell">
                   <div className="macro-value big">{Math.round(totals.calories).toLocaleString()}</div>
@@ -690,12 +973,12 @@ export default function Home() {
               {(pendingCount > 0 || weight || activeCalories) && (
                 <div className="sync-status">
                   <DotIcon size={7} />
-                  {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''}` : ''}{pendingCount > 0 && (weight || activeCalories) ? ' + ' : ''}{weight ? 'weight' : ''}{weight && activeCalories ? ' + ' : ''}{activeCalories ? 'active cals' : ''} pending sync to Notion
+                  {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''}` : ''}{pendingCount > 0 && (weight || activeCalories) ? ' + ' : ''}{weight ? 'weight' : ''}{weight && activeCalories ? ' + ' : ''}{activeCalories ? 'active cals' : ''} pending save
                 </div>
               )}
-              <button className="btn-sync" disabled={syncLoading || (pendingCount === 0 && !weight && !activeCalories)} onClick={syncToNotion}>
+              <button className="btn-sync" disabled={syncLoading || (pendingCount === 0 && !weight && !activeCalories)} onClick={syncToServer}>
                 <ArrowUpIcon size={16} />
-                {syncLoading ? 'Syncing...' : 'Sync to Notion'}
+                {syncLoading ? 'Saving…' : 'Save'}
               </button>
               {syncStatus.text && <div className={`status status-${syncStatus.type}`}>{syncStatus.text}</div>}
             </div>
@@ -786,6 +1069,85 @@ export default function Home() {
               </div>
               {advisorStatus.text && !advisorLoading && <div className={`status status-${advisorStatus.type}`}>{advisorStatus.text}</div>}
             </div>
+          </div>
+        )}
+
+        {tab === 'history' && (
+          <div className="panel">
+            <div className="card-title" style={{ fontFamily: 'var(--serif)', fontSize: 22, marginBottom: 14 }}>
+              History
+            </div>
+            <div className="history-acc">
+              {weekSlots.map(({ date: d, row }) => {
+                const open = historyExpanded === d;
+                const muted = !row;
+                const cal = row ? Number(row.calories) || 0 : 0;
+                const prot = row ? Number(row.protein) || 0 : 0;
+                const label = editDayLabel(d, todayDate);
+                return (
+                  <div key={d} className={`history-row${muted ? ' muted' : ''}`}>
+                    <div
+                      role={muted ? undefined : 'button'}
+                      className={`history-row-head${open ? ' open' : ''}`}
+                      onClick={() => {
+                        if (muted) return;
+                        setHistoryExpanded(open ? null : d);
+                      }}
+                    >
+                      <span>
+                        {label} · {row ? `${cal} kcal · P${prot}g` : '—'}
+                      </span>
+                      {!muted && <span className="chev">›</span>}
+                    </div>
+                    {open && row && (
+                      <div className="history-row-body">
+                        {parseMealLogText(row.meal_log || '').map((m, i) => (
+                          <div key={i} className="history-meal-line">
+                            {m.type}: {m.name} — {m.calories} kcal (P{m.protein} C{m.carbs} F{m.fat})
+                          </div>
+                        ))}
+                        {(!row.meal_log || !parseMealLogText(row.meal_log).length) && (
+                          <div className="history-meal-line">No meals logged</div>
+                        )}
+                        <div style={{ marginTop: 10, fontFamily: 'var(--sans)', fontSize: 13 }}>
+                          Weight: {row.weight != null ? `${row.weight} lbs` : '—'} · Active:{' '}
+                          {row.active_calories != null ? `${row.active_calories} kcal` : '—'}
+                        </div>
+                        <div style={{ marginTop: 6, fontFamily: 'var(--mono)', fontSize: 11 }}>
+                          Net {(Number(row.calories) || 0) - (Number(row.active_calories) || 0)} kcal vs TDEE{' '}
+                          {TDEE}{' '}
+                          {(() => {
+                            const net = (Number(row.calories) || 0) - (Number(row.active_calories) || 0);
+                            const diff = TDEE - net;
+                            return diff >= 0 ? `(deficit ${diff})` : `(surplus ${Math.abs(diff)})`;
+                          })()}
+                        </div>
+                        <button
+                          type="button"
+                          className="log-this-btn"
+                          style={{ marginTop: 12 }}
+                          onClick={() => {
+                            setViewDate(d);
+                            setTab('log');
+                          }}
+                        >
+                          Edit this day →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="history-summary-card">
+              <h3>This week</h3>
+              <div>Avg daily calories: {avgWeekCal || '—'}</div>
+              <div>Avg daily protein: {avgWeekProt ? `${avgWeekProt}g` : '—'}</div>
+              <div>Total deficit vs TDEE (net): {totalDeficit >= 0 ? `+${totalDeficit}` : totalDeficit} kcal</div>
+              <div>Days ≥ {PROTEIN_TARGET}g protein: {daysProteinHit}</div>
+              <div>Days net at or under TDEE: {daysUnderTdee}</div>
+            </div>
+            <HistoryCharts entriesChrono={historyEntries} tdee={TDEE} />
           </div>
         )}
       </div>
