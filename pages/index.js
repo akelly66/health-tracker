@@ -610,6 +610,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            <div className="card">
               <div className="card-header">
                 <div className="card-title">Meals</div>
                 {pendingCount > 0 && (
