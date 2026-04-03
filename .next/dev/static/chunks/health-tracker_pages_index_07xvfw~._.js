@@ -1,0 +1,5 @@
+(globalThis["TURBOPACK_CHUNK_LISTS"] || (globalThis["TURBOPACK_CHUNK_LISTS"] = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: ["static/chunks/health-tracker_components_HistoryCharts_0hbuwd9.js","static/chunks/[root-of-the-server]__0dyjs7~._.js","static/chunks/0562_next_dist_compiled_10s165g._.js","static/chunks/0562_next_dist_shared_lib_0_4hh6b._.js","static/chunks/0562_next_dist_client_0pr8qq_._.js","static/chunks/0562_next_dist_098o0sj._.js","static/chunks/0562_next_0oq72f6._.js","static/chunks/0562_react_0u1g15_._.js","static/chunks/0562_react-dom_cjs_react-dom_development_0zxnwld.js","static/chunks/0562_react-dom_0az-4sw._.js","static/chunks/0562_0_gy.vt._.js"],
+    source: "entry"
+});
