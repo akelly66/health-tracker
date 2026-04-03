@@ -3,5 +3,7 @@
   "/_app": "pages/_app.js",
   "/_document": "pages/_document.js",
   "/_error": "pages/_error.js",
+  "/api/history": "pages/api/history.js",
+  "/api/sync": "pages/api/sync.js",
   "/api/today": "pages/api/today.js"
 }
