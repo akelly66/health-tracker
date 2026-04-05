@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { message, totals, meals, advisorMode, chatHistory } = req.body;
-  const TDEE = 1795;
+  const TDEE = 1600;
   const PROTEIN_TARGET = 110;
 
   const remaining = Math.max(0, TDEE - Math.round(totals.calories));
