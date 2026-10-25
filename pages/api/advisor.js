@@ -1,3 +1,5 @@
+import { MODEL } from '../../lib/model';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -45,7 +47,7 @@ Only include one of these tags per response. JSON must be valid and on a single 
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL,
         max_tokens: 1000,
         system,
         messages: [...chatHistory.map(({ role, content }) => ({ role, content })), { role: 'user', content: message }]

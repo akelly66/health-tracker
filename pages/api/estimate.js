@@ -1,3 +1,5 @@
+import { MODEL } from '../../lib/model';
+
 export const config = {
   api: {
     bodyParser: {
@@ -33,7 +35,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL,
         max_tokens: 1000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }]
