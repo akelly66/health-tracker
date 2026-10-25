@@ -8,18 +8,6 @@ const HistoryCharts = dynamic(() => import('../components/HistoryCharts'), { ssr
 const TDEE = 1600;
 const PROTEIN_TARGET = 110;
 
-const GREETINGS = [
-  'Rise and log. The scale is waiting and it has no chill.',
-  'Still committed to the bit? How much do you weigh today?',
-  'Another day, another opportunity to demolish your protein goal.',
-  "Your future self is watching. She looks great, btw. Weight check?",
-  'Hot girl walk starts with knowing your starting weight.',
-  "The data doesn't lie. Unfortunately. How are we looking today?",
-  'Abs are made in the kitchen, logged in this app.',
-  "You showed up. That's already a win. Now step on the scale.",
-  'New day, new macros. How much do you weigh right now?',
-];
-
 function getLocalDateString(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -395,7 +383,6 @@ export default function Home() {
   const [historyExpanded, setHistoryExpanded] = useState(null);
 
   const [greetingOpen, setGreetingOpen] = useState(false);
-  const [greetingLine, setGreetingLine] = useState('');
   const [greetingWeightInput, setGreetingWeightInput] = useState('');
   const [greetingYesterdayBurn, setGreetingYesterdayBurn] = useState('');
   const [greetingShowYesterdayBurn, setGreetingShowYesterdayBurn] = useState(false);
@@ -460,7 +447,6 @@ export default function Home() {
       ]);
       const todayData = await tr.json();
       const yestData = await yr.json();
-      setGreetingLine(GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
       if (todayData.found && todayData.weight != null) {
         setGreetingWeightInput(String(todayData.weight));
       }
@@ -755,7 +741,7 @@ export default function Home() {
       <style dangerouslySetInnerHTML={{ __html: styles }} />
       {greetingOpen && (
         <div className="greeting-overlay">
-          <div className="greeting-text">{greetingLine}</div>
+          <div className="greeting-text">Daily check-in</div>
           <div className="greeting-field">
             <div className="greeting-label">Weight (lbs)</div>
             <input
