@@ -752,7 +752,7 @@ export default function Home() {
         <title>Body Log</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       </Head>
-      <style>{styles}</style>
+      <style dangerouslySetInnerHTML={{ __html: styles }} />
       {greetingOpen && (
         <div className="greeting-overlay">
           <div className="greeting-text">{greetingLine}</div>
