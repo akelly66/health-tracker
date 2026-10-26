@@ -54,6 +54,25 @@ function storageSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
 }
 
+// The advisor chat is kept on this device for the day it started, so closing the app doesn't lose it.
+const CHAT_PREFIX = 'chat_';
+const MAX_SAVED_CHAT = 60;
+function loadChat(day) {
+  try {
+    const saved = JSON.parse(storageGet(CHAT_PREFIX + day) || '[]');
+    return Array.isArray(saved) ? saved.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function clearOldChats(day) {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(CHAT_PREFIX) && key !== CHAT_PREFIX + day) localStorage.removeItem(key);
+    }
+  } catch {}
+}
+
 function getLocalDateString(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -1124,6 +1143,17 @@ export default function Home() {
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory]);
+
+  // Restore today's chat once on open, then save it after every change.
+  useEffect(() => {
+    clearOldChats(todayDate);
+    setChatHistory(loadChat(todayDate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!chatHistory.length) return; // nothing to save yet; also keeps the first render from wiping the saved chat
+    storageSet(CHAT_PREFIX + todayDate, JSON.stringify(chatHistory.slice(-MAX_SAVED_CHAT)));
+  }, [chatHistory, todayDate]);
 
   useEffect(() => {
     if (prefillMeal) {
