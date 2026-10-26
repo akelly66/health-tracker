@@ -1,6 +1,6 @@
 {
-  "name": "Body Log",
-  "short_name": "Body Log",
+  "name": "mise",
+  "short_name": "mise",
   "description": "Daily macro and meal tracker",
   "start_url": "/",
   "display": "standalone",

@@ -1,4 +1,4 @@
-/* Body Log styles. Colors come ONLY from the CSS variables defined in lib/theme.js (see DESIGN.md). */
+/* mise styles. Colors come ONLY from the CSS variables defined in lib/theme.js (see DESIGN.md). */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); font-family: var(--sans); color: var(--ink); min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
   .wrap { display: flex; flex-direction: column; align-items: center; padding: 0 0 60px; }
@@ -256,4 +256,4 @@
   .load-error button { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--on-accent); background: var(--accent); border: none; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
   button:focus-visible, [role=tab]:focus-visible, .meal-item:focus-visible, .btn-scan-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .recharts-text, .recharts-cartesian-axis-tick-value { font-family: var(--sans); }
-  .header-logo { width: 34px; height: 34px; display: block; flex: none; }
+  .wordmark { display: block; flex: none; }

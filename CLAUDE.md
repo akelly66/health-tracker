@@ -1,4 +1,4 @@
-# Body Log
+# mise
 
 Next.js (Pages Router) macro and weight tracker backed by Postgres (Neon) and the Anthropic API.
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { mealsToMealLogText } from '../lib/mealLog';
+import miseGlyphs from '../lib/mise-glyphs.json';
 
 const WeightChart = dynamic(() => import('../components/HistoryCharts').then((m) => m.WeightChart), { ssr: false });
 const CaloriesChart = dynamic(() => import('../components/HistoryCharts').then((m) => m.CaloriesChart), { ssr: false });
@@ -205,6 +206,22 @@ async function postSync(body) {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Save failed');
+}
+
+// The name as a vector wordmark (soft Fraunces outlines, see lib/mise-glyphs.json). Being plain shapes,
+// it needs no font download, and it takes its colors from the design tokens.
+function MiseWordmark({ height = 34 }) {
+  const { paths, bbox } = miseGlyphs.wordmark;
+  const pad = 8;
+  const w = bbox.x2 - bbox.x1 + pad * 2;
+  const h = bbox.y2 - bbox.y1 + pad * 2;
+  return (
+    <svg className="wordmark" viewBox={`${bbox.x1 - pad} ${bbox.y1 - pad} ${w} ${h}`} height={height} width={Math.round((height * w) / h)} role="img" aria-label="mise">
+      {paths.map((g, i) => (
+        <path key={i} d={g.d} style={{ fill: g.char === '.' ? 'var(--pink)' : 'var(--green)' }} />
+      ))}
+    </svg>
+  );
 }
 
 const ZapIcon = ({ size = 14, style = {} }) => (
@@ -1385,7 +1402,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Body Log</title>
+        <title>mise</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
@@ -1456,7 +1473,7 @@ export default function Home() {
       )}
       {quick === 'weight' && (
         <QuickLog
-          title="Track weight"
+          title="Log weight"
           sub={`${editDayLabel(viewDate, todayDate)}${weight ? ' · currently ' + weight + ' lbs' : ''}`}
           unit="lbs"
           step="0.1"
@@ -1469,7 +1486,7 @@ export default function Home() {
       )}
       {quick === 'burn' && (
         <QuickLog
-          title="Track calories burned"
+          title="Log calories burned"
           sub={`${editDayLabel(viewDate, todayDate)}${activeCalories ? ' · currently ' + activeCalories + ' kcal' : ''}`}
           unit="kcal"
           step="1"
@@ -1485,8 +1502,7 @@ export default function Home() {
         <div className="sticky-top">
           <div className="header">
             <div className="header-title">
-              <img className="header-logo" src="/icon.svg" alt="" width={34} height={34} />
-              Body Log
+              <MiseWordmark height={34} />
             </div>
             <div className="header-right">
               <div className="header-date">{displayDate}</div>
@@ -1562,15 +1578,17 @@ export default function Home() {
                   type="button"
                   className={`track-btn${weight ? ' done' : weighDue && viewDate === todayDate ? ' due' : ''}`}
                   onClick={() => setQuick('weight')}
+                  aria-label={weight ? 'Weight logged. Tap to edit.' : 'Log weight'}
                 >
-                  {weight ? <><CheckIcon size={12} /> {weight} lbs</> : <><PlusIcon size={13} /> Track weight</>}
+                  {weight ? <><CheckIcon size={12} /> Weight logged</> : <><PlusIcon size={13} /> Log weight</>}
                 </button>
                 <button
                   type="button"
                   className={`track-btn${activeCalories ? ' done' : ''}`}
                   onClick={() => setQuick('burn')}
+                  aria-label={activeCalories ? `${activeCalories} calories burned logged. Tap to edit.` : 'Log calories burned'}
                 >
-                  {activeCalories ? <>🔥 {activeCalories} kcal burned</> : <><PlusIcon size={13} /> Track calories burned</>}
+                  {activeCalories ? <><CheckIcon size={12} /> {activeCalories} kcal burned</> : <><PlusIcon size={13} /> Log calories burned</>}
                 </button>
               </div>
             </div>

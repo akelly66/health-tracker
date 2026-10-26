@@ -1,4 +1,4 @@
-# Body Log design system
+# mise design system
 
 One rule: **colors come from `lib/theme.js` and nowhere else.** The app uses four hues, each as a
 dense and a soft color, on a warm cream base. Nothing outside this palette is allowed.
@@ -42,6 +42,13 @@ Rules of use:
 - **Tints are mixes of palette colors**, defined in `lib/theme.js` (`--green-tint`, `--green-deep`).
   Do not add a color by eyeballing a hex. To change the palette, change `lib/theme.js` and everything follows.
 - **Overlays and shadows are ink at some opacity** (`--scrim`, `--shadow-card`, `--shadow-pop`, `--shadow-tip`).
+
+## Name and logo
+
+- The name is **mise** (from *mise en place*), always lowercase, set in a soft serif (Fraunces, soft) with a **pink period**: `mise.`
+- The wordmark and the app icon are drawn from letter outlines stored in `lib/mise-glyphs.json` (Fraunces is under the SIL Open Font License; outlines extracted once at optical size 144, weight 500, softness 100). They are plain vector shapes, so the app downloads no font for the logo. The header uses the component `MiseWordmark` and takes its colors from the tokens (deep green letters, pink period).
+- The app icon is the monogram **m.**: a deep green m with a pink period on a cream tile, with clear space between the letter and the period (they never touch). Regenerate every size with `npm run make:icons`.
+- A live serif font is **not** part of the app yet; DM Sans still does all functional text. If headings should go serif later, add the font deliberately through `next/font` and a `--serif` token, then update this file.
 
 ## Progress tab: one hue per box
 

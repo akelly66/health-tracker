@@ -1,6 +1,7 @@
 // Generates the app icons from the design tokens, so the icon always matches the app's palette.
 //   npm run make:icons
-// The icon is a calorie ring (like the progress bar on the Track tab) with three macro meters inside.
+// The icon is the "m." monogram: a soft-serif m in deep green with a pink period, on cream.
+// The letter shapes live in lib/mise-glyphs.json (outlines of Fraunces, soft), so no font is needed here.
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
@@ -9,28 +10,29 @@ const root = path.join(__dirname, '..');
 const themeSrc = fs.readFileSync(path.join(root, 'lib/theme.js'), 'utf8');
 const paletteBlock = themeSrc.slice(themeSrc.indexOf('export const palette'), themeSrc.indexOf('};', themeSrc.indexOf('export const palette')));
 const p = Object.fromEntries([...paletteBlock.matchAll(/(\w+):\s*'(#[0-9a-fA-F]{6})'/g)].map((m) => [m[1], m[2]]));
-for (const key of ['green', 'greenSoft', 'blue', 'pink', 'purple', 'card']) {
+for (const key of ['green', 'pink', 'card', 'line']) {
   if (!p[key]) throw new Error(`palette color "${key}" not found in lib/theme.js`);
 }
+const glyphs = JSON.parse(fs.readFileSync(path.join(root, 'lib/mise-glyphs.json'), 'utf8')).monogram;
 
-// 512 x 512 canvas. Everything important sits inside the central ~67%, which is also the "safe zone"
-// that Android crops to when it masks the icon into a circle or squircle.
+// 512 x 512 canvas. The "m." sits in the middle ~66%, which is also the safe zone Android crops to
+// when it masks the icon into a circle or squircle.
+const MARK_WIDTH = 330;
+
 function iconSvg({ rounded }) {
-  const R = 150; // ring radius
-  const circumference = 2 * Math.PI * R;
-  const arc = circumference * 0.72; // how full the ring is
-  const bars = [
-    { y: 214, w: 118, color: p.blue },
-    { y: 252, w: 90, color: p.pink },
-    { y: 290, w: 64, color: p.purple },
-  ];
+  const b = glyphs.bbox;
+  const scale = MARK_WIDTH / (b.x2 - b.x1);
+  const tx = 256 - ((b.x1 + b.x2) / 2) * scale;
+  const ty = 256 - ((b.y1 + b.y2) / 2) * scale;
   const corner = rounded ? 112 : 0;
+  // Rounded versions keep a hairline so the cream tile still reads on light backgrounds.
+  const border = rounded ? `\n  <rect x="1.5" y="1.5" width="509" height="509" rx="${corner - 1.5}" fill="none" stroke="${p.line}" stroke-width="3"/>` : '';
+  const shapes = glyphs.paths.map((g) => `<path d="${g.d}" fill="${g.char === '.' ? p.pink : p.green}"/>`).join('\n    ');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="${corner}" fill="${p.green}"/>
-  <circle cx="256" cy="256" r="${R}" fill="none" stroke="${p.greenSoft}" stroke-opacity="0.3" stroke-width="44"/>
-  <circle cx="256" cy="256" r="${R}" fill="none" stroke="${p.card}" stroke-width="44" stroke-linecap="round"
-    stroke-dasharray="${arc.toFixed(1)} ${circumference.toFixed(1)}" transform="rotate(-90 256 256)"/>
-  ${bars.map((b) => `<rect x="${256 - 59}" y="${b.y}" width="${b.w}" height="26" rx="13" fill="${b.color}"/>`).join('\n  ')}
+  <rect width="512" height="512" rx="${corner}" fill="${p.card}"/>${border}
+  <g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${scale.toFixed(5)})">
+    ${shapes}
+  </g>
 </svg>
 `;
 }

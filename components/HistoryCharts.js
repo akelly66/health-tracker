@@ -155,7 +155,7 @@ export function WeightChart({ weighIns = [], profile }) {
         </div>
       </div>
       {paceStatus && <div className="chart-sub">{paceStatus}</div>}
-      <div className="chart-note">{weighIns.length ? story : 'No weigh-ins yet. Use Track weight on the Track tab.'}</div>
+      <div className="chart-note">{weighIns.length ? story : 'No weigh-ins yet. Use Log weight on the Track tab.'}</div>
       {weighIns.length > 0 && (
         <>
           <div className="chart-legend">
