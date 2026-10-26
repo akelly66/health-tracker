@@ -237,23 +237,34 @@ function CalorieTip({ active, payload }) {
   );
 }
 
-export function CaloriesChart({ calorieEntries = [], tdee }) {
-  const data = calorieEntries.slice(-30).map((e) => {
-    const eaten = Number(e.calories) || 0;
-    const burned = Number(e.active_calories) || 0;
-    return { date: e.date, eaten, burned, net: Math.max(eaten - burned, 0) };
+// Short axis label for a 7-day chart: "Mon 19".
+function dayTick(ymd) {
+  const d = new Date(ymdToMs(ymd));
+  return `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${d.getDate()}`;
+}
+
+// `days` is the calendar window to show (oldest first), so the chart always covers those days,
+// not "the last N days that happen to have food logged". Days with nothing logged stay empty.
+export function CaloriesChart({ calorieEntries = [], days = [], tdee }) {
+  const byDate = Object.fromEntries(calorieEntries.map((e) => [e.date, e]));
+  const data = days.map((date) => {
+    const e = byDate[date];
+    const eaten = e ? Number(e.calories) || 0 : 0;
+    const burned = e ? Number(e.active_calories) || 0 : 0;
+    return { date, eaten, burned, net: Math.max(eaten - burned, 0) };
   });
+  const logged = data.filter((d) => d.eaten > 0);
   const avg = (rows, key) => (rows.length ? Math.round(rows.reduce((a, r) => a + r[key], 0) / rows.length) : null);
-  const avgEaten = avg(data, 'eaten');
-  const avgBurned = avg(data.filter((d) => d.burned > 0), 'burned');
-  const avgNet = data.length ? Math.round(data.reduce((a, d) => a + (d.eaten - d.burned), 0) / data.length) : null;
+  const avgEaten = avg(logged, 'eaten');
+  const avgBurned = avg(logged.filter((d) => d.burned > 0), 'burned');
+  const avgNet = logged.length ? Math.round(logged.reduce((a, d) => a + (d.eaten - d.burned), 0) / logged.length) : null;
   const fmt = (v) => (v == null ? '—' : v.toLocaleString());
   const yMax = Math.max(tdee, ...data.map((d) => d.eaten)) * 1.12;
 
   return (
     <div className="card">
       <div className="chart-title">Calories eaten &amp; burned</div>
-      <div className="chart-note">Each bar is what you ate. The solid part is your net after activity.</div>
+      <div className="chart-note">Last 7 days. Each bar is what you ate; the solid part is your net after activity.</div>
       <div className="chart-tiles">
         <div className="chart-tile tile-eaten">
           <div className="chart-tile-val">{fmt(avgEaten)}</div>
@@ -268,8 +279,8 @@ export function CaloriesChart({ calorieEntries = [], tdee }) {
           <div className="chart-tile-label">Avg net</div>
         </div>
       </div>
-      {data.length === 0 ? (
-        <div className="chart-empty">No entries yet.</div>
+      {logged.length === 0 ? (
+        <div className="chart-empty">Nothing logged in the last 7 days.</div>
       ) : (
         <>
           <div className="chart-legend">
@@ -286,7 +297,7 @@ export function CaloriesChart({ calorieEntries = [], tdee }) {
                 </pattern>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
-              <XAxis dataKey="date" tickFormatter={formatYMD} tick={AXIS_TICK} interval="preserveStartEnd" minTickGap={56} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" tickFormatter={dayTick} tick={AXIS_TICK} interval={0} axisLine={false} tickLine={false} />
               <YAxis tick={AXIS_TICK} width={40} domain={[0, Math.ceil(yMax / 100) * 100]} axisLine={false} tickLine={false} />
               <Tooltip content={<CalorieTip />} cursor={{ fill: SAGE, fillOpacity: 0.3, radius: 8 }} />
               <ReferenceLine y={tdee} stroke={GREEN} strokeOpacity={0.45} strokeDasharray="2 5" strokeLinecap="round" strokeWidth={2} />

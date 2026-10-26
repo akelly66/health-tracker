@@ -1380,7 +1380,6 @@ export default function Home() {
     () => calorieEntries.filter((e) => e.weight != null && e.weight !== '').map((e) => ({ date: e.date, weight: Number(e.weight) })),
     [calorieEntries]
   );
-  const foodEntries = useMemo(() => calorieEntries.filter((e) => hasFood(e)), [calorieEntries]);
   const historyByDate = useMemo(() => Object.fromEntries(calorieEntries.map((e) => [e.date, e])), [calorieEntries]);
   const weighDue = weighInDue(profile, todayDate, weighIns);
   const showOnboarding = profileLoaded && skipChecked && !profile.onboarded && !onboardingSkipped;
@@ -1815,7 +1814,7 @@ export default function Home() {
               <div className="week-hint">Tap a day to open it on the Track tab.</div>
             </div>
 
-            <CaloriesChart calorieEntries={foodEntries} tdee={TDEE} />
+            <CaloriesChart calorieEntries={calorieEntries} days={last7} tdee={TDEE} />
           </div>
         )}
       </div>
