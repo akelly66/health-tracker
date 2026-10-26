@@ -291,6 +291,7 @@ const mealTypeColors = {
 function SwipeMealRow({ children, onDelete }) {
   const wrapRef = useRef(null);
   const itemRef = useRef(null);
+  const bgRef = useRef(null);
   const startX = useRef(0);
   const currentX = useRef(0);
   const isDragging = useRef(false);
@@ -321,6 +322,11 @@ function SwipeMealRow({ children, onDelete }) {
     }
   }
 
+  // The pink Delete strip only appears while a row is being dragged, so it never peeks out at rest.
+  function showDelete(dx) {
+    if (bgRef.current) bgRef.current.style.opacity = String(Math.min(1, Math.abs(dx) / 24));
+  }
+
   // Touch handlers
   function onTouchStart(e) {
     startX.current = e.touches[0].clientX;
@@ -333,6 +339,7 @@ function SwipeMealRow({ children, onDelete }) {
     const dx = Math.min(0, e.touches[0].clientX - startX.current);
     currentX.current = dx;
     itemRef.current.style.transform = `translateX(${dx}px)`;
+    showDelete(dx);
   }
   function onTouchEnd() {
     isDragging.current = false;
@@ -341,6 +348,7 @@ function SwipeMealRow({ children, onDelete }) {
     } else {
       itemRef.current.style.transition = 'transform 0.2s ease';
       itemRef.current.style.transform = 'translateX(0)';
+      showDelete(0);
     }
     currentX.current = 0;
   }
@@ -359,6 +367,7 @@ function SwipeMealRow({ children, onDelete }) {
     const dx = Math.min(0, e.clientX - startX.current);
     currentX.current = dx;
     itemRef.current.style.transform = `translateX(${dx}px)`;
+    showDelete(dx);
   }
   function onMouseUp() {
     isDragging.current = false;
@@ -369,13 +378,14 @@ function SwipeMealRow({ children, onDelete }) {
     } else {
       itemRef.current.style.transition = 'transform 0.2s ease';
       itemRef.current.style.transform = 'translateX(0)';
+      showDelete(0);
     }
     currentX.current = 0;
   }
 
   return (
     <div className="meal-row-wrap" ref={wrapRef}>
-      <div className="meal-delete-bg">Delete</div>
+      <div className="meal-delete-bg" ref={bgRef}>Delete</div>
       <div
         className="meal-item"
         ref={itemRef}
