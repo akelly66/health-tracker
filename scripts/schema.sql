@@ -39,3 +39,13 @@ ALTER TABLE profile ADD COLUMN IF NOT EXISTS age INTEGER;
 ALTER TABLE profile ADD COLUMN IF NOT EXISTS height_in DECIMAL(4,1);
 ALTER TABLE profile ADD COLUMN IF NOT EXISTS sex TEXT;
 ALTER TABLE profile ADD COLUMN IF NOT EXISTS activity TEXT;
+
+-- Finished interval-timer workouts. Each one also adds its calories to entries.active_calories (pages/api/workout.js).
+CREATE TABLE IF NOT EXISTS workouts (
+  id SERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  name TEXT NOT NULL DEFAULT 'Workout',
+  seconds INTEGER NOT NULL,
+  est_calories INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
