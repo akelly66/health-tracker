@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const { rows } = await sql`
-      SELECT date, calories, protein, carbs, fat, weight, active_calories, meal_log
+      SELECT date, calories, protein, carbs, fat, fiber, weight, active_calories
       FROM entries
       ORDER BY date DESC
       LIMIT ${days}

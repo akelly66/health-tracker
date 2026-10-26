@@ -1,5 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { parseMealLogText } from '../../lib/mealLog';
+import { isYmd } from '../../lib/nutrition';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -10,6 +11,8 @@ export default async function handler(req, res) {
   const date =
     req.query.date ||
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  if (!isYmd(date)) return res.status(400).json({ error: 'date must look like 2026-01-31' });
 
   try {
     const { rows } = await sql`SELECT * FROM entries WHERE date = ${date}::date`;
@@ -25,6 +28,7 @@ export default async function handler(req, res) {
       protein: row.protein ?? 0,
       carbs: row.carbs ?? 0,
       fat: row.fat ?? 0,
+      fiber: row.fiber ?? 0,
       weight: row.weight != null ? Number(row.weight) : null,
       active_calories: row.active_calories != null ? Number(row.active_calories) : null,
       meal_log: mealLogText,
