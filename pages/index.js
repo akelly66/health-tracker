@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { mealsToMealLogText } from '../lib/mealLog';
+import { PREF_SECTIONS, parsePrefs, formatPrefs, splitItems } from '../lib/prefs';
 import miseGlyphs from '../lib/mise-glyphs.json';
 
 const WeightChart = dynamic(() => import('../components/HistoryCharts').then((m) => m.WeightChart), { ssr: false });
@@ -282,10 +283,9 @@ const PlusIcon = ({ size = 11 }) => (
     <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
   </svg>
 );
-const SendIcon = ({ size = 10 }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="22" y1="2" x2="11" y2="13"/>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+const SendIcon = ({ size = 16 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20V5M5 12l7-7 7 7" />
   </svg>
 );
 const UtensilsIcon = ({ size = 15, color = 'var(--green)' }) => (
@@ -423,11 +423,13 @@ function SwipeMealRow({ children, onDelete }) {
 }
 
 // Used for first-run onboarding and, with `editing`, for changing goals/preferences later.
-function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, onClose, onSkip, onSave }) {
+// With `onlyStep` it shows just that one section with a Save button (used by the settings page).
+function Onboarding({ initial, latestWeight, todayYmd, editing, onlyStep, saving, error, onClose, onSkip, onSave }) {
   useEscape(editing ? onClose : null);
+  const single = onlyStep != null;
   const initialCurrent =
     latestWeight != null ? String(latestWeight) : initial.start_weight != null ? String(initial.start_weight) : '';
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(single ? onlyStep : 0);
   const [goalKey, setGoalKey] = useState(initial.fitness_goal || '');
   const [age, setAge] = useState(initial.age != null ? String(initial.age) : '');
   const [heightFt, setHeightFt] = useState(initial.height_in != null ? String(Math.floor(initial.height_in / 12)) : '');
@@ -444,6 +446,7 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
   // Once someone has edited (or already saved) targets, don't overwrite them with a fresh suggestion.
   const [targetsEdited, setTargetsEdited] = useState(Boolean(initial.onboarded));
   const [prefs, setPrefs] = useState(initial.diet_prefs || '');
+  const [prefSections, setPrefSections] = useState(() => parsePrefs(initial.diet_prefs));
 
   const cw = parseFloat(currentWeight);
   const ageNum = parseInt(age, 10);
@@ -457,6 +460,7 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
   const goalValid = parseFloat(goalWeight) > 0 && goalDate && daysBetween(todayYmd, goalDate) >= 1;
   const targetsValid = cal >= 800 && pro > 0 && fib > 0;
   const lastStep = 4;
+  const singleValid = [Boolean(goalKey), aboutValid, goalValid, targetsValid, true][step];
 
   function suggestionFor(useGoal) {
     return suggestTargets({
@@ -493,8 +497,9 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
     goToTargets(false);
   }
 
-  function finish() {
+  function finish(noGoal) {
     const hasCw = cw > 0;
+    const useGoal = useGoalNow && !noGoal;
     const keepStart = initial.onboarded && initial.start_weight != null && hasCw && cw === parseFloat(initialCurrent);
     onSave(
       {
@@ -505,8 +510,8 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
         activity,
         start_weight: keepStart ? initial.start_weight : hasCw ? cw : null,
         start_date: keepStart ? initial.start_date : hasCw ? todayYmd : null,
-        goal_weight: useGoalNow ? parseFloat(goalWeight) : null,
-        goal_date: useGoalNow ? goalDate : null,
+        goal_weight: useGoal ? parseFloat(goalWeight) : null,
+        goal_date: useGoal ? goalDate : null,
         weigh_in_mode: 'weekly',
         weigh_in_day: initial.weigh_in_day ?? 1,
         calorie_target: cal,
@@ -514,7 +519,7 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
         fiber_target: fib,
         carb_target: macros.carbs,
         fat_target: macros.fat,
-        diet_prefs: prefs.trim(),
+        diet_prefs: single ? formatPrefs(prefSections).slice(0, 4000) : prefs.trim(),
       },
       hasCw && !keepStart ? cw : null
     );
@@ -532,9 +537,11 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
         {!editing && onSkip && (
           <button type="button" className="onb-skip" onClick={onSkip}>Skip for now</button>
         )}
-        <div className="onb-dots">
-          {[0, 1, 2, 3, 4].map((i) => <span key={i} className={`onb-dot${i <= step ? ' on' : ''}`} />)}
-        </div>
+        {!single && (
+          <div className="onb-dots">
+            {[0, 1, 2, 3, 4].map((i) => <span key={i} className={`onb-dot${i <= step ? ' on' : ''}`} />)}
+          </div>
+        )}
 
         {step === 0 && (
           <>
@@ -649,21 +656,48 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
 
         {step === 4 && (
           <>
-            <div className="onb-title">Food preferences</div>
-            <div className="onb-sub">Optional. The advisor uses this when it suggests meals. Write it however you like.</div>
-            <textarea
-              className="prefs-input"
-              rows={9}
-              maxLength={4000}
-              value={prefs}
-              onChange={(e) => setPrefs(e.target.value)}
-              placeholder={'Likes: salmon, Greek yogurt, spicy food\nDislikes: cilantro, mushrooms\nAllergies: shellfish\nPantry staples: eggs, rice, frozen veggies, canned beans\nUsually buy: chicken sausage, oats, bagged salad'}
-            />
+            <div className="onb-title">{single ? 'Likes, dislikes & pantry' : 'Food preferences'}</div>
+            <div className="onb-sub">Optional. The advisor uses this when it suggests meals.{single ? '' : ' Write it however you like.'}</div>
+            {single ? (
+              PREF_SECTIONS.map((sec) => (
+                <label key={sec.key} className="field">
+                  <span className="field-label">{sec.label}</span>
+                  <textarea
+                    className="prefs-input"
+                    rows={sec.key === 'notes' ? 3 : 2}
+                    maxLength={600}
+                    value={prefSections[sec.key]}
+                    onChange={(e) => setPrefSections((p) => ({ ...p, [sec.key]: e.target.value }))}
+                    placeholder={PREF_HINTS[sec.key]}
+                  />
+                </label>
+              ))
+            ) : (
+              <textarea
+                className="prefs-input"
+                rows={9}
+                maxLength={4000}
+                value={prefs}
+                onChange={(e) => setPrefs(e.target.value)}
+                placeholder={'Likes: salmon, Greek yogurt, spicy food\nDislikes: cilantro, mushrooms\nAllergies: shellfish\nPantry staples: eggs, rice, frozen veggies, canned beans\nUsually buy: chicken sausage, oats, bagged salad'}
+              />
+            )}
           </>
         )}
 
         {error && <div className="status status-error">{error}</div>}
 
+        {single && (
+          <div className="onb-actions">
+            {step === 2 && (
+              <button type="button" className="btn-ghost" disabled={saving} onClick={() => finish(true)}>Clear target</button>
+            )}
+            <button type="button" className="btn-primary" disabled={saving || !singleValid} onClick={() => finish()}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        )}
+        {!single && (
         <div className="onb-actions">
           {step > 0 && (
             <button type="button" className="btn-ghost" onClick={() => setStep(step - 1)}>Back</button>
@@ -689,6 +723,140 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, saving, error, o
             </button>
           )}
         </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const PREF_HINTS = {
+  likes: 'salmon, Greek yogurt, spicy food',
+  dislikes: 'cilantro, mushrooms',
+  allergies: 'shellfish',
+  pantry: 'eggs, rice, frozen veggies, canned beans',
+  buys: 'chicken sausage, oats, bagged salad',
+  notes: 'Anything else the advisor should know',
+};
+const SEX_LABELS = { female: 'Female', male: 'Male', unspecified: 'Prefer not to say' };
+
+function SettingsCard({ title, onEdit, children }) {
+  return (
+    <div className="card">
+      <div className="set-head">
+        <div className="card-title">{title}</div>
+        <button type="button" className="set-edit" onClick={onEdit}>Edit</button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SettingsRow({ label, value }) {
+  return (
+    <div className="set-row">
+      <span className="set-label">{label}</span>
+      <span className="set-value">{value || <span className="set-empty">Not set</span>}</span>
+    </div>
+  );
+}
+
+function PrefChips({ label, value, tone }) {
+  const items = splitItems(value);
+  return (
+    <div className="set-pref">
+      <div className="set-label">{label}</div>
+      {items.length ? (
+        <div className="chips">{items.map((it, i) => <span key={i} className={`chip chip-${tone}`}>{it}</span>)}</div>
+      ) : (
+        <div className="set-empty">Nothing added yet</div>
+      )}
+    </div>
+  );
+}
+
+// Shows what's currently set. Each section's Edit opens just that section (see Onboarding's onlyStep).
+function SettingsView({ profile, latestWeight, todayYmd, editingOpen, onEdit, onSetup, onClose }) {
+  useEscape(editingOpen ? null : onClose);
+  const goal = FITNESS_GOALS.find((g) => g.key === profile.fitness_goal);
+  const activity = ACTIVITY_LEVELS.find((a) => a.key === profile.activity);
+  const prefs = parsePrefs(profile.diet_prefs);
+  const height = profile.height_in ? `${Math.floor(profile.height_in / 12)} ft ${Math.round(profile.height_in % 12)} in` : '';
+  const weightNow = latestWeight ?? profile.start_weight;
+  const goalDate = profile.goal_date ? ymdToDate(profile.goal_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const pace = profile.goal_weight && profile.goal_date ? paceNote(weightNow, profile.goal_weight, profile.goal_date, todayYmd) : null;
+
+  return (
+    <div className="onb-overlay" role="dialog" aria-modal="true" aria-label="Settings">
+      <div className="onb-inner">
+        <button type="button" className="onb-close" aria-label="Close" onClick={onClose}>×</button>
+        <div className="onb-title">Settings</div>
+        <div className="onb-sub">What you have set right now. Tap Edit to change a section.</div>
+
+        {!profile.onboarded && (
+          <div className="pace-note suggest set-setup">
+            <strong>Your goals aren't set up yet.</strong>
+            <br />
+            Answer a few questions and mise will suggest daily targets.
+            <br />
+            <button type="button" className="link-btn" onClick={onSetup}>Set up my goals</button>
+          </div>
+        )}
+
+        <SettingsCard title="Fitness goal" onEdit={() => onEdit(0)}>
+          {goal ? (
+            <>
+              <div className="set-goal">{goal.label}</div>
+              <div className="set-empty">{goal.hint}</div>
+            </>
+          ) : (
+            <div className="set-empty">Not set</div>
+          )}
+        </SettingsCard>
+
+        <SettingsCard title="Daily targets" onEdit={() => onEdit(3)}>
+          <SettingsRow label="Calories" value={`${Number(profile.calorie_target).toLocaleString()} kcal`} />
+          <SettingsRow label="Protein" value={`${profile.protein_target} g`} />
+          <SettingsRow label="Fiber" value={`${profile.fiber_target} g`} />
+          <SettingsRow label="Carbs" value={`about ${profile.carb_target} g`} />
+          <SettingsRow label="Fat" value={`about ${profile.fat_target} g`} />
+        </SettingsCard>
+
+        <SettingsCard title="Weight goal" onEdit={() => onEdit(2)}>
+          {profile.goal_weight ? (
+            <>
+              <SettingsRow label="Goal weight" value={`${profile.goal_weight} lbs`} />
+              <SettingsRow label="By" value={goalDate} />
+              {pace && <div className={`pace-note${pace.warn ? ' warn' : ''}`}>{pace.text}</div>}
+            </>
+          ) : (
+            <div className="set-empty">No target weight. Edit to add one.</div>
+          )}
+        </SettingsCard>
+
+        <SettingsCard title="Likes & dislikes" onEdit={() => onEdit(4)}>
+          <PrefChips label="Likes" value={prefs.likes} tone="like" />
+          <PrefChips label="Dislikes" value={prefs.dislikes} tone="dislike" />
+        </SettingsCard>
+
+        <SettingsCard title="Allergies & pantry" onEdit={() => onEdit(4)}>
+          <PrefChips label="Allergies" value={prefs.allergies} tone="allergy" />
+          <PrefChips label="Pantry staples" value={prefs.pantry} tone="pantry" />
+          <PrefChips label="Usually buy" value={prefs.buys} tone="pantry" />
+          {prefs.notes && (
+            <div className="set-pref">
+              <div className="set-label">Notes</div>
+              <div className="set-notes">{prefs.notes}</div>
+            </div>
+          )}
+        </SettingsCard>
+
+        <SettingsCard title="About you" onEdit={() => onEdit(1)}>
+          <SettingsRow label="Current weight" value={weightNow ? `${weightNow} lbs` : ''} />
+          <SettingsRow label="Age" value={profile.age ? String(profile.age) : ''} />
+          <SettingsRow label="Height" value={height} />
+          <SettingsRow label="Sex" value={SEX_LABELS[profile.sex] || ''} />
+          <SettingsRow label="Activity" value={activity ? activity.label : ''} />
+        </SettingsCard>
       </div>
     </div>
   );
@@ -949,6 +1117,10 @@ export default function Home() {
   const [advisorStatus, setAdvisorStatus] = useState({ text: '', type: '' });
   const [prefillMeal, setPrefillMeal] = useState(null);
   const chatRef = useRef(null);
+  const composerRef = useRef(null);
+  const chatPhotoInputRef = useRef(null);
+  const [chatPhoto, setChatPhoto] = useState(null);
+  const [attachOpen, setAttachOpen] = useState(false);
   const photoInputRef = useRef(null);
 
   const [displayDate, setDisplayDate] = useState('');
@@ -962,6 +1134,8 @@ export default function Home() {
   const [skipChecked, setSkipChecked] = useState(false);
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [editStep, setEditStep] = useState(null); // which settings section is being edited (null = the full setup flow)
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
 
@@ -1144,6 +1318,24 @@ export default function Home() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory]);
 
+  useEffect(() => {
+    if (!attachOpen) return undefined;
+    const close = (e) => { if (!e.target.closest || !e.target.closest('.attach-wrap')) setAttachOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setAttachOpen(false); };
+    document.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', onKey); };
+  }, [attachOpen]);
+
+  // The message box grows with what you type, up to a few lines, like iMessage.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden'; // only scroll once it's taller than the cap
+  }, [advisorInput, tab]);
+
   // Restore today's chat once on open, then save it after every change.
   useEffect(() => {
     clearOldChats(todayDate);
@@ -1152,7 +1344,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!chatHistory.length) return; // nothing to save yet; also keeps the first render from wiping the saved chat
-    storageSet(CHAT_PREFIX + todayDate, JSON.stringify(chatHistory.slice(-MAX_SAVED_CHAT)));
+    storageSet(CHAT_PREFIX + todayDate, JSON.stringify(chatHistory.slice(-MAX_SAVED_CHAT).map(({ photoUrl, ...m }) => (photoUrl ? { ...m, hadPhoto: true } : m))));
   }, [chatHistory, todayDate]);
 
   useEffect(() => {
@@ -1168,13 +1360,20 @@ export default function Home() {
     loadPhoto(file);
   }
 
+  function handleChatPhotoSelect(e) {
+    const file = e.target.files[0];
+    e.target.value = ''; // so picking the same photo again still fires
+    if (!file) return;
+    loadPhoto(file, setChatPhoto, () => setAdvisorStatus({ text: "Couldn't read that photo. Try another one.", type: 'error' }));
+  }
+
   function handleDrop(e) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) loadPhoto(file);
   }
 
-  function loadPhoto(file) {
+  function loadPhoto(file, onLoad = setPhoto, onError = () => setMealStatus({ text: "Couldn't read that photo. Try another one.", type: 'error' })) {
     const canvas = document.createElement('canvas');
     const img = new Image();
     const reader = new FileReader();
@@ -1189,12 +1388,12 @@ export default function Home() {
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-        setPhoto({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+        onLoad({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
       };
-      img.onerror = () => setMealStatus({ text: "Couldn't read that photo. Try another one.", type: 'error' });
+      img.onerror = onError;
       img.src = ev.target.result;
     };
-    reader.onerror = () => setMealStatus({ text: "Couldn't read that photo. Try another one.", type: 'error' });
+    reader.onerror = onError;
     reader.readAsDataURL(file);
   }
 
@@ -1271,8 +1470,17 @@ export default function Home() {
 
   function addScannedMeal(meal) {
     setMeals((prev) => [...prev, { ...meal, id: newMealId(), type: 'Meal', synced: false }]);
-    setMealStatus({ text: `✓ Added: ${meal.name} (${meal.calories} kcal)`, type: 'success' });
-    setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
+    if (tab === 'advisor') {
+      // Scanned from the chat: say so in the conversation, which also tells the advisor what was eaten.
+      setChatHistory((h) => [...h, {
+        role: 'assistant',
+        content: `Scanned and added **${meal.name}**: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g.`,
+        action: 'log_meal',
+      }]);
+    } else {
+      setMealStatus({ text: `✓ Added: ${meal.name} (${meal.calories} kcal)`, type: 'success' });
+      setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
+    }
     setScanner(null);
   }
 
@@ -1367,17 +1575,27 @@ export default function Home() {
   }
 
   async function sendAdvisorMessage(msg) {
-    const message = msg || advisorInput.trim();
-    if (!message) return;
+    const typed = msg || advisorInput.trim();
+    const attached = chatPhoto;
+    const message = typed || (attached ? 'What do you think of this? Estimate the macros.' : '');
+    if (!message || advisorLoading) return;
     setAdvisorLoading(true);
     setAdvisorInput('');
-    setChatHistory(h => [...h, { role: 'user', content: message }]);
+    setChatPhoto(null);
+    setChatHistory(h => [...h, { role: 'user', content: message, photoUrl: attached ? attached.previewUrl : undefined, photoOnly: Boolean(attached && !typed) }]);
     setAdvisorStatus({ text: 'Thinking...', type: 'loading' });
     try {
       const res = await fetch('/api/advisor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, totals, meals, chatHistory })
+        // Only the words go back to the server for earlier turns; photos aren't resent.
+        body: JSON.stringify({
+          message,
+          totals,
+          meals,
+          chatHistory: chatHistory.slice(-10).map(({ role, content }) => ({ role, content })),
+          photo: attached ? { base64: attached.base64, mediaType: attached.mediaType } : null,
+        })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1445,9 +1663,22 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
+      {settingsOpen && (
+        <SettingsView
+          profile={profile}
+          latestWeight={weighIns.length ? weighIns[weighIns.length - 1].weight : null}
+          todayYmd={todayDate}
+          editingOpen={editingProfile}
+          onEdit={(step) => { setEditStep(step); setEditingProfile(true); }}
+          onSetup={() => { setEditStep(null); setEditingProfile(true); }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
       {(showOnboarding || editingProfile) && (
         <Onboarding
-          key={editingProfile ? 'edit' : 'first'}
+          key={editingProfile ? `edit-${editStep}` : 'first'}
+          onlyStep={editingProfile ? editStep : null}
           initial={profile}
           latestWeight={weighIns.length ? weighIns[weighIns.length - 1].weight : null}
           todayYmd={todayDate}
@@ -1545,7 +1776,7 @@ export default function Home() {
             </div>
             <div className="header-right">
               <div className="header-date">{displayDate}</div>
-              <button type="button" className="icon-btn" aria-label="Goals and preferences" onClick={() => setEditingProfile(true)}>
+              <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
                 <GearIcon size={16} />
               </button>
             </div>
@@ -1745,8 +1976,10 @@ export default function Home() {
                 )}
                 {chatHistory.map((m, i) => (
                   <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : 'assistant'}`}>
-                    <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
-                      {m.role === 'user' ? m.content : (
+                    <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}${m.photoUrl ? ' has-photo' : ''}`}>
+                      {m.role === 'user' && m.photoUrl && <img className="chat-photo" src={m.photoUrl} alt="Attached meal" />}
+                      {m.role === 'user' && !m.photoUrl && m.hadPhoto && <div className="chat-photo-note"><CameraIcon size={12} /> Photo</div>}
+                      {m.role === 'user' ? (m.photoOnly ? null : <div className={m.photoUrl ? 'chat-photo-text' : undefined}>{m.content}</div>) : (
                         <span dangerouslySetInnerHTML={{ __html:
                           m.content
                             .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -1778,24 +2011,68 @@ export default function Home() {
                 ))}
                 {advisorLoading && (
                   <div className="msg-wrap assistant">
-                    <div className="chat-bubble assistant" style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Thinking...</div>
+                    <div className="chat-bubble assistant typing" role="status" aria-label="Thinking"><span /><span /><span /></div>
                   </div>
                 )}
               </div>
 
-              <div className="chat-input-area">
-                <textarea
-                  value={advisorInput}
-                  onChange={e => setAdvisorInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendAdvisorMessage(); }}
-                  placeholder="Ask anything: what to eat, what's in your fridge, how your day looks…"
-                  rows={2}
-                />
-                <div className="chat-input-bottom">
-                  <button className="btn-send" disabled={advisorLoading} onClick={() => sendAdvisorMessage()}>
-                    Send <SendIcon size={10} />
+              <div className="composer-bar">
+                <div className="attach-wrap">
+                  <button
+                    type="button"
+                    className={`attach-btn${attachOpen ? ' open' : ''}`}
+                    aria-label="Add a photo or scan a barcode"
+                    aria-expanded={attachOpen}
+                    onClick={() => setAttachOpen((o) => !o)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </button>
+                  {attachOpen && (
+                    <div className="attach-menu" role="menu">
+                      <button type="button" role="menuitem" className="attach-item" onClick={() => { setAttachOpen(false); chatPhotoInputRef.current && chatPhotoInputRef.current.click(); }}>
+                        <CameraIcon size={16} /> Photo
+                      </button>
+                      <button type="button" role="menuitem" className="attach-item" onClick={() => { setAttachOpen(false); setScanner({ stage: 'camera' }); }}>
+                        <BarcodeIcon size={16} /> Scan barcode
+                      </button>
+                    </div>
+                  )}
+                  <input ref={chatPhotoInputRef} type="file" accept="image/*" hidden onChange={handleChatPhotoSelect} />
                 </div>
+                <form className="composer" onSubmit={(e) => { e.preventDefault(); sendAdvisorMessage(); }}>
+                  {chatPhoto && (
+                    <div className="composer-photo">
+                      <img src={chatPhoto.previewUrl} alt="Photo to send" />
+                      <button type="button" className="composer-photo-x" aria-label="Remove photo" onClick={() => setChatPhoto(null)}>×</button>
+                    </div>
+                  )}
+                  <div className="composer-row">
+                    <textarea
+                      ref={composerRef}
+                      rows={1}
+                      value={advisorInput}
+                      onChange={(e) => setAdvisorInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Like Messages: on a computer Enter sends and Shift+Enter adds a line; on a phone Return adds a line and the arrow sends.
+                        if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+                        if (window.matchMedia('(pointer: coarse)').matches) return;
+                        e.preventDefault();
+                        sendAdvisorMessage();
+                      }}
+                      placeholder={chatPhoto ? 'Add a message…' : 'Ask anything…'}
+                      aria-label="Message the advisor"
+                    />
+                    <button
+                      type="submit"
+                      className={`btn-send${advisorInput.trim() || chatPhoto ? ' ready' : ''}`}
+                      aria-label="Send"
+                      disabled={advisorLoading || !(advisorInput.trim() || chatPhoto)}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <SendIcon />
+                    </button>
+                  </div>
+                </form>
               </div>
               {advisorStatus.text && !advisorLoading && <div className={`status status-${advisorStatus.type}`}>{advisorStatus.text}</div>}
             </div>

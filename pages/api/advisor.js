@@ -11,6 +11,9 @@ const GOAL_LABELS = {
 
 const MAX_HISTORY_MESSAGES = 10;
 
+// Photos arrive as base64 in the request body, so allow more than the 1mb default.
+export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
+
 const DEFAULT_TARGETS = { calorie_target: 1600, protein_target: 110, fiber_target: 25 };
 
 async function loadProfile() {
@@ -33,6 +36,11 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const message = typeof body.message === 'string' ? body.message.trim().slice(0, 2000) : '';
   if (!message) return res.status(400).json({ error: 'Message required' });
+
+  const photo = body.photo;
+  if (photo && (typeof photo.base64 !== 'string' || !/^image\/(jpeg|png|webp|gif)$/.test(photo.mediaType || ''))) {
+    return res.status(400).json({ error: 'That photo format is not supported' });
+  }
 
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const totals = { calories: num(body.totals?.calories), protein: num(body.totals?.protein), carbs: num(body.totals?.carbs), fat: num(body.totals?.fat), fiber: num(body.totals?.fiber) };
@@ -86,6 +94,7 @@ There are no modes. Work out what they want from their message and answer it nat
 - Listing ingredients or pantry items: give 2-3 meal ideas with estimated macros.
 - Asking how their day is going: analyze it directly and say what to prioritize.
 - Asking for a recipe: give a specific recipe with a brief method and macros per serving.
+- Sending a photo of food or a meal: say what you see, estimate the macros, and say how it fits their day. Include MEAL_DATA for what's in the photo so they can log it.
 - Anything else about food or nutrition: just talk to them.
 
 Be direct and precise. Protein is the top priority, fiber second. No filler.
@@ -111,7 +120,15 @@ Only include one of these tags per response. JSON must be valid and on a single 
         ...MODEL_PARAMS,
         max_tokens: 1000,
         system,
-        messages: [...chatHistory, { role: 'user', content: message }]
+        messages: [
+          ...chatHistory,
+          {
+            role: 'user',
+            content: photo
+              ? [{ type: 'image', source: { type: 'base64', media_type: photo.mediaType, data: photo.base64 } }, { type: 'text', text: message }]
+              : message
+          }
+        ]
       })
     });
 

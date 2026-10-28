@@ -37,26 +37,65 @@ function formatYMD(ymd) {
   return ymd ? formatMs(ymdToMs(ymd)) : '';
 }
 
-// Least-squares line through the weigh-ins: weight = intercept + slope * (days since the first point).
-function fitTrend(points) {
-  if (points.length < 2) return null;
+// Scale weight bounces a few pounds from day to day (water, salt, workouts), so the trend is fit through
+// weekly averages once there are enough weeks, and a projected goal date is only trusted after ~3 weeks.
+function weeklyAverages(points) {
+  if (!points.length) return [];
   const x0 = ymdToMs(points[0].date);
-  const xs = points.map((p) => (ymdToMs(p.date) - x0) / DAY_MS);
-  const ys = points.map((p) => p.weight);
-  const n = points.length;
-  const mx = xs.reduce((a, b) => a + b, 0) / n;
-  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const buckets = new Map();
+  for (const p of points) {
+    const x = (ymdToMs(p.date) - x0) / DAY_MS;
+    const key = Math.floor(x / 7);
+    const bk = buckets.get(key) || { x: 0, y: 0, n: 0 };
+    bk.x += x;
+    bk.y += p.weight;
+    bk.n += 1;
+    buckets.set(key, bk);
+  }
+  return [...buckets.keys()].sort((p, q) => p - q).map((k) => ({ x: buckets.get(k).x / buckets.get(k).n, y: buckets.get(k).y / buckets.get(k).n }));
+}
+
+// Least-squares line through {x: days, y: lb}, with the standard error of its slope when there are 3+ points.
+function fitLine(pts) {
+  const n = pts.length;
+  if (n < 2) return null;
+  const mx = pts.reduce((acc, p) => acc + p.x, 0) / n;
+  const my = pts.reduce((acc, p) => acc + p.y, 0) / n;
   let num = 0;
   let den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (xs[i] - mx) * (ys[i] - my);
-    den += (xs[i] - mx) ** 2;
+  for (const p of pts) {
+    num += (p.x - mx) * (p.y - my);
+    den += (p.x - mx) ** 2;
   }
   if (den === 0) return null;
   const slope = num / den;
+  const intercept = my - slope * mx;
+  let se = null;
+  if (n >= 3) {
+    const rss = pts.reduce((acc, p) => acc + (p.y - (intercept + slope * p.x)) ** 2, 0);
+    se = Math.sqrt(rss / (n - 2) / den);
+  }
+  return { slope, intercept, se };
+}
+
+function fitTrend(points) {
+  if (points.length < 2) return null;
+  const x0 = ymdToMs(points[0].date);
+  const raw = points.map((p) => ({ x: (ymdToMs(p.date) - x0) / DAY_MS, y: p.weight }));
+  const span = raw[raw.length - 1].x;
   // Need a real span of time, otherwise two weigh-ins a day apart would make a wild "trend".
-  if (xs[n - 1] - xs[0] < 6) return null;
-  return { slope, at: (ms) => my - slope * mx + slope * ((ms - x0) / DAY_MS) };
+  if (span < 6) return null;
+  const weekly = weeklyAverages(points);
+  const smooth = weekly.length >= 3;
+  const line = fitLine(smooth ? weekly : raw);
+  if (!line) return null;
+  return {
+    slope: line.slope,
+    se: line.se,
+    span,
+    reliable: smooth && points.length >= 4 && span >= 21,
+    at: (ms) => line.intercept + line.slope * ((ms - x0) / DAY_MS),
+  };
 }
 
 export function WeightChart({ weighIns = [], profile }) {
@@ -91,10 +130,10 @@ export function WeightChart({ weighIns = [], profile }) {
     weight: weighByMs[t] ?? null,
     pace: goalPaceAt && goalPaceAt(t) != null ? r2(goalPaceAt(t)) : null,
     trend: trend && t >= firstMs && t <= lastMs ? r2(trend.at(t)) : null,
-    projection: trend && hasGoal && t >= lastMs && t <= goalMs ? r2(trend.at(t)) : null,
+    projection: trend && trend.reliable && hasGoal && t >= lastMs && t <= goalMs ? r2(trend.at(t)) : null,
   }));
 
-  const projEnd = trend && hasGoal && goalMs > lastMs ? trend.at(goalMs) : null;
+  const projEnd = trend && trend.reliable && hasGoal && goalMs > lastMs ? trend.at(goalMs) : null;
   const yVals = [...points.map((p) => p.weight)];
   if (hasGoal) yVals.push(goalW);
   if (startW != null) yVals.push(startW);
@@ -112,25 +151,43 @@ export function WeightChart({ weighIns = [], profile }) {
   const perWeek = trend ? trend.slope * 7 : null;
   let story = 'Log a few weigh-ins over the next week or two and your trend line will appear.';
   if (trend && perWeek != null) {
-    const toward = hasGoal ? (goalW < trend.at(lastMs) ? perWeek < 0 : perWeek > 0) : null;
-    if (Math.abs(perWeek) < 0.05) {
+    const current = trend.at(lastMs);
+    const rate = Math.abs(perWeek).toFixed(1);
+    const toward = hasGoal ? (goalW < current ? perWeek < 0 : perWeek > 0) : null;
+    if (!trend.reliable) {
+      story = `Early read from ${points.length} weigh-in${points.length === 1 ? '' : 's'} over ${Math.round(trend.span)} days. Weight bounces a few pounds day to day, so a projected date shows up after about 3 weeks of weigh-ins.`;
+    } else if (Math.abs(perWeek) < 0.05) {
       story = 'Your weight is holding steady.';
     } else if (!hasGoal) {
-      story = `Your trend is ${perWeek < 0 ? 'down' : 'up'} ${Math.abs(perWeek).toFixed(1)} lb per week.`;
+      story = `Your trend is ${perWeek < 0 ? 'down' : 'up'} ${rate} lb per week.`;
     } else if (!toward) {
-      story = `Your trend is ${perWeek < 0 ? 'down' : 'up'} ${Math.abs(perWeek).toFixed(1)} lb per week, which is moving away from your goal.`;
+      story = `Your trend is ${perWeek < 0 ? 'down' : 'up'} ${rate} lb per week, which is moving away from your goal.`;
+    } else if (Math.abs(goalW - current) < 0.5) {
+      story = `Your average weight (${current.toFixed(1)} lb) is already at your goal.`;
     } else {
-      const daysToGoal = (goalW - trend.at(lastMs)) / trend.slope;
-      const crossMs = lastMs + Math.max(daysToGoal, 0) * DAY_MS;
-      story = `At ${Math.abs(perWeek).toFixed(1)} lb per week you'd reach ${goalW} lb around ${formatMs(crossMs)}${crossMs > goalMs + 3 * DAY_MS ? ', after your goal date' : ''}.`;
+      // The range runs from "a bit faster than the trend" to "a bit slower", using the uncertainty in the trend itself.
+      const dist = Math.abs(goalW - current);
+      const slope = Math.abs(trend.slope);
+      const se = trend.se || 0;
+      const fastMs = lastMs + (dist / (slope + se)) * DAY_MS;
+      const slowDays = slope - se > 0.005 ? dist / (slope - se) : null;
+      const slowMs = slowDays != null && slowDays <= 730 ? lastMs + slowDays * DAY_MS : null;
+      const range = slowMs ? `between ${formatMs(fastMs)} and ${formatMs(slowMs)}` : `no earlier than ${formatMs(fastMs)}, and it's too early to say how much later`;
+      let vsGoal = '';
+      if (goalMs != null) {
+        if (slowMs && slowMs <= goalMs + 3 * DAY_MS) vsGoal = ' That is in time for your goal date.';
+        else if (fastMs > goalMs + 3 * DAY_MS) vsGoal = ' That is after your goal date.';
+        else vsGoal = ' Your goal date falls inside that range.';
+      }
+      story = `At about ${rate} lb per week you'd likely reach ${goalW} lb ${range}.${vsGoal} Based on weekly averages of ${points.length} weigh-ins.`;
     }
   }
 
   let paceStatus = null;
-  if (goalPaceAt && lastMs != null) {
+  if (goalPaceAt && lastMs != null && trend && trend.reliable) {
     const expected = goalPaceAt(lastMs);
     if (expected != null) {
-      const diff = lastPoint.weight - expected;
+      const diff = trend.at(lastMs) - expected;
       const losing = goalW < startW;
       const ahead = losing ? diff < 0 : diff > 0;
       paceStatus = Math.abs(diff) < 0.5 ? 'On pace' : `${Math.abs(diff).toFixed(1)} lb ${ahead ? 'ahead of' : 'behind'} pace`;
@@ -151,7 +208,7 @@ export function WeightChart({ weighIns = [], profile }) {
         </div>
         <div className="chart-tile tile-trend">
           <div className="chart-tile-val">{perWeek != null ? `${perWeek > 0 ? '+' : '−'}${Math.abs(perWeek).toFixed(1)} lb` : '—'}</div>
-          <div className="chart-tile-label">Trend per week</div>
+          <div className="chart-tile-label">{trend && !trend.reliable ? 'Early trend / wk' : 'Trend per week'}</div>
         </div>
       </div>
       {paceStatus && <div className="chart-sub">{paceStatus}</div>}
@@ -183,7 +240,7 @@ export function WeightChart({ weighIns = [], profile }) {
               {goalPaceAt && (
                 <Line type="linear" dataKey="pace" stroke={PURPLE} strokeWidth={3} strokeLinecap="round" strokeDasharray="1 7" dot={false} name="Goal pace" connectNulls isAnimationActive={false} />
               )}
-              {trend && hasGoal && (
+              {trend && trend.reliable && hasGoal && (
                 <Line type="linear" dataKey="projection" stroke={GREEN} strokeOpacity={0.55} strokeWidth={2.5} strokeDasharray="2 5" strokeLinecap="round" dot={false} name="Projected" connectNulls isAnimationActive={false} />
               )}
               {trend && (
