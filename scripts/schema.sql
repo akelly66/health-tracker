@@ -49,3 +49,13 @@ CREATE TABLE IF NOT EXISTS workouts (
   est_calories INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- A short "why" shown back to the user in Settings and the advisor's context.
+ALTER TABLE profile ADD COLUMN IF NOT EXISTS why TEXT DEFAULT '';
+
+-- A plan for one day (movement, when, how to set it up, meals). Written the evening before; shown on that day.
+CREATE TABLE IF NOT EXISTS plans (
+  date DATE PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMP DEFAULT NOW()
+);

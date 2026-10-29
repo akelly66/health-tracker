@@ -20,7 +20,7 @@ async function loadProfile() {
   try {
     const { rows } = await sql`
       SELECT start_weight, goal_weight, to_char(goal_date, 'YYYY-MM-DD') AS goal_date,
-             calorie_target, protein_target, fiber_target, diet_prefs,
+             calorie_target, protein_target, fiber_target, diet_prefs, why,
              fitness_goal, age, height_in, sex
       FROM profile WHERE id = 1
     `;
@@ -75,7 +75,8 @@ export default async function handler(req, res) {
   const weightGoal = profile?.goal_weight
     ? ` Target weight: ${Number(profile.goal_weight)} lbs${profile.goal_date ? ` by ${profile.goal_date}` : ''}${profile.start_weight ? ` (starting from ${Number(profile.start_weight)} lbs)` : ''}.`
     : '';
-  const goalLine = `Their fitness goal: ${fitnessGoal}.${weightGoal} ${aboutLine}`.trim();
+  const whyLine = profile?.why?.trim() ? ` What matters to them, in their words: "${profile.why.trim()}". Use it sparingly, to encourage.` : '';
+  const goalLine = `Their fitness goal: ${fitnessGoal}.${weightGoal} ${aboutLine}${whyLine}`.trim();
   const prefsBlock = profile?.diet_prefs?.trim()
     ? `\nTheir dietary preferences, in their own words (likes, dislikes, allergies, pantry staples, what they usually buy). Respect allergies strictly and lean on these when suggesting food:\n${profile.diet_prefs.trim()}\n`
     : '';
@@ -98,6 +99,8 @@ There are no modes. Work out what they want from their message and answer it nat
 - Anything else about food or nutrition: just talk to them.
 
 Be direct and precise. Protein is the top priority, fiber second. No filler.
+
+Tone: warm, matter-of-fact and encouraging. Never shame or lecture. A day over target is just data: say what's useful next, not what went wrong, and don't use guilt words like "cheat", "bad", "naughty", "failed" or "blew it". When you talk about movement, lean toward what sounds fun, relaxing or social, and treat everyday movement (walks, chores, stairs) as real exercise. Reflect their effort back to them.
 
 IMPORTANT: End your response with structured data on its own line when relevant:
 - Recommending ONE meal: MEAL_DATA:{"name":"Meal name","calories":400,"protein":35,"carbs":20,"fat":15,"fiber":6}

@@ -22,6 +22,7 @@ const DEFAULT_PROFILE = {
   carb_target: 170,
   fat_target: 53,
   diet_prefs: '',
+  why: '',
   fitness_goal: '',
   age: null,
   height_in: null,
@@ -446,6 +447,7 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, onlyStep, saving
   // Once someone has edited (or already saved) targets, don't overwrite them with a fresh suggestion.
   const [targetsEdited, setTargetsEdited] = useState(Boolean(initial.onboarded));
   const [prefs, setPrefs] = useState(initial.diet_prefs || '');
+  const [why, setWhy] = useState(initial.why || '');
   const [prefSections, setPrefSections] = useState(() => parsePrefs(initial.diet_prefs));
 
   const cw = parseFloat(currentWeight);
@@ -520,6 +522,7 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, onlyStep, saving
         carb_target: macros.carbs,
         fat_target: macros.fat,
         diet_prefs: single ? formatPrefs(prefSections).slice(0, 4000) : prefs.trim(),
+        why: why.trim(),
       },
       hasCw && !keepStart ? cw : null
     );
@@ -555,6 +558,10 @@ function Onboarding({ initial, latestWeight, todayYmd, editing, onlyStep, saving
                 </button>
               ))}
             </div>
+            <label className="field why-field">
+              <span className="field-label">Why does this matter to you? (optional)</span>
+              <input className="field-input text" maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} placeholder="To feel strong and have energy" />
+            </label>
           </>
         )}
 
@@ -811,6 +818,10 @@ function SettingsView({ profile, latestWeight, todayYmd, editingOpen, onEdit, on
           ) : (
             <div className="set-empty">Not set</div>
           )}
+          <div className="set-pref">
+            <div className="set-label">Your why</div>
+            {profile.why ? <div className="set-notes">{profile.why}</div> : <div className="set-empty">Add one, so it's here on harder days.</div>}
+          </div>
         </SettingsCard>
 
         <SettingsCard title="Daily targets" onEdit={() => onEdit(3)}>
@@ -1096,6 +1107,109 @@ function QuickLog({ title, sub, unit, step, initial, busy, error, onSave, onClos
   );
 }
 
+// A plan for a day: how to move, when, how to set it up tonight, and the meals. Written the evening before.
+const planHasContent = (p) => Boolean(p && (p.move || p.setup || p.meals));
+
+// "07:30" -> "7:30 AM"
+function formatPlanTime(t) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t || '');
+  if (!m) return '';
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+const DRAFT_PROMPT =
+  'I\'m planning tomorrow. Draft my meals: breakfast, lunch, dinner and one snack. Fit my calorie and protein targets and my food preferences, and keep them easy and low effort. Reply with only the list, one line per meal like "Breakfast: ...", with no intro and no macros.';
+
+function PlanSheet({ title, sub, initial, busy, drafting, error, onDraft, onSave, onClose }) {
+  useEscape(onClose);
+  const [move, setMove] = useState(initial.move || '');
+  const [when, setWhen] = useState(initial.when || '');
+  const [setup, setSetup] = useState(initial.setup || '');
+  const [meals, setMeals] = useState(initial.meals || '');
+  const canSave = Boolean(move.trim() || setup.trim() || meals.trim());
+
+  async function draft() {
+    const text = await onDraft();
+    if (text) setMeals(text);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title">{title}</div>
+        <div className="modal-sub">{sub}</div>
+        <label className="field">
+          <span className="field-label">What would feel good to move?</span>
+          <input className="field-input text" maxLength={160} value={move} onChange={(e) => setMove(e.target.value)} placeholder="A walk after dinner with a podcast" />
+        </label>
+        <label className="field">
+          <span className="field-label">When</span>
+          <input className="field-input text" type="time" value={when} onChange={(e) => setWhen(e.target.value)} />
+        </label>
+        <label className="field">
+          <span className="field-label">Make it easy: set it up tonight</span>
+          <input className="field-input text" maxLength={160} value={setup} onChange={(e) => setSetup(e.target.value)} placeholder="Shoes by the door, clothes laid out" />
+        </label>
+        <label className="field">
+          <span className="field-label">Meals</span>
+          <textarea className="prefs-input" rows={5} maxLength={1500} value={meals} onChange={(e) => setMeals(e.target.value)} placeholder={'Breakfast: ...\nLunch: ...\nDinner: ...'} />
+        </label>
+        <button type="button" className="btn-ghost small" disabled={drafting} onClick={draft}>
+          {drafting ? 'Drafting…' : 'Draft meals with the advisor'}
+        </button>
+        {error && <div className="status status-error">{error}</div>}
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy || !canSave}
+            onClick={() => onSave({ move: move.trim(), when, setup: setup.trim(), meals: meals.trim(), done: Boolean(initial.done) })}
+          >
+            {busy ? 'Saving…' : 'Save plan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanCard({ title, plan, onEdit, onToggleDone }) {
+  const time = formatPlanTime(plan.when);
+  return (
+    <div className="card plan-card">
+      <div className="set-head">
+        <div className="card-title">{title}</div>
+        <button type="button" className="set-edit" onClick={onEdit}>Edit</button>
+      </div>
+      {plan.move && (
+        <div className="plan-row">
+          <div className="set-label">Move{time ? ` · ${time}` : ''}</div>
+          <div className="plan-text">{plan.move}</div>
+        </div>
+      )}
+      {plan.setup && (
+        <div className="plan-row">
+          <div className="set-label">Set up</div>
+          <div className="plan-text">{plan.setup}</div>
+        </div>
+      )}
+      {plan.meals && (
+        <div className="plan-row">
+          <div className="set-label">Meals</div>
+          <div className="plan-text plan-meals">{plan.meals}</div>
+        </div>
+      )}
+      {onToggleDone && plan.move && (
+        <button type="button" className={`track-btn${plan.done ? ' done' : ''}`} onClick={onToggleDone}>
+          {plan.done ? <><CheckIcon size={12} /> Done. Nice work.</> : 'I did it'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState('log');
   const [meals, setMeals] = useState([]);
@@ -1118,6 +1232,9 @@ export default function Home() {
   const [prefillMeal, setPrefillMeal] = useState(null);
   const chatRef = useRef(null);
   const composerRef = useRef(null);
+  const chatCardRef = useRef(null);
+  const composerFocused = useRef(false);
+  const updateKeyboard = useRef(() => {});
   const chatPhotoInputRef = useRef(null);
   const [chatPhoto, setChatPhoto] = useState(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -1126,6 +1243,86 @@ export default function Home() {
   const [displayDate, setDisplayDate] = useState('');
   const [viewDate, setViewDate] = useState(() => getLocalDateString());
   const todayDate = getLocalDateString();
+
+  const tomorrowDate = addDaysToYMD(todayDate, 1);
+  const [plans, setPlans] = useState({}); // { 'YYYY-MM-DD': { move, when, setup, meals, done } }
+  const [planOpen, setPlanOpen] = useState(null); // the date being planned, or null
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planDrafting, setPlanDrafting] = useState(false);
+  const [planError, setPlanError] = useState('');
+  const [evening, setEvening] = useState(false);
+
+  useEffect(() => {
+    // Set after mount so the server-rendered page and the first client render match.
+    setEvening(new Date().getHours() >= 16);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/plan?dates=${todayDate},${tomorrowDate}`);
+        if (!res.ok) return;
+        const j = await res.json();
+        setPlans(j.plans || {});
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [todayDate, tomorrowDate]);
+
+  async function postPlan(date, plan) {
+    const res = await fetch('/api/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, plan }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save the plan');
+  }
+
+  async function savePlan(date, plan) {
+    setPlanBusy(true);
+    setPlanError('');
+    try {
+      await postPlan(date, plan);
+      setPlans((p) => ({ ...p, [date]: plan }));
+      setPlanOpen(null);
+    } catch (e) {
+      setPlanError(e.message);
+    }
+    setPlanBusy(false);
+  }
+
+  async function togglePlanDone(date) {
+    const before = plans[date];
+    if (!before) return;
+    const next = { ...before, done: !before.done };
+    setPlans((p) => ({ ...p, [date]: next }));
+    try {
+      await postPlan(date, next);
+    } catch {
+      setPlans((p) => ({ ...p, [date]: before }));
+    }
+  }
+
+  async function draftTomorrowMeals() {
+    setPlanDrafting(true);
+    setPlanError('');
+    let text = '';
+    try {
+      const res = await fetch('/api/advisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: DRAFT_PROMPT, totals: ZERO_TOTALS, meals: [], chatHistory: [], photo: null }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Could not draft meals');
+      text = String(data.reply || '').replace(/\*\*/g, '').trim();
+    } catch (e) {
+      setPlanError(e.message);
+    }
+    setPlanDrafting(false);
+    return text;
+  }
 
   const [historyEntries, setHistoryEntries] = useState([]);
 
@@ -1326,6 +1523,39 @@ export default function Home() {
     window.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', onKey); };
   }, [attachOpen]);
+
+  // Like Messages: while the keyboard is up, the chat card stretches down to the top of the keyboard, so the thread
+  // fills the middle and the message bar sits right on the keyboard (no empty gap). On iPhone the keyboard shrinks the
+  // visual viewport but not the page, so the height comes from visualViewport.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const update = () => {
+      const keyboard = composerFocused.current || (vv ? window.innerHeight - vv.height > 120 : false);
+      document.documentElement.classList.toggle('kb-open', keyboard);
+      const card = chatCardRef.current;
+      if (!card) return;
+      if (keyboard && vv) {
+        const visibleBottom = vv.offsetTop + vv.height;
+        card.style.height = Math.max(260, visibleBottom - card.getBoundingClientRect().top - 8) + 'px';
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+      } else {
+        card.style.height = '';
+      }
+    };
+    updateKeyboard.current = update;
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+    }
+    return () => {
+      if (vv) {
+        vv.removeEventListener('resize', update);
+        vv.removeEventListener('scroll', update);
+      }
+      document.documentElement.classList.remove('kb-open');
+      if (chatCardRef.current) chatCardRef.current.style.height = '';
+    };
+  }, []);
 
   // The message box grows with what you type, up to a few lines, like iMessage.
   useEffect(() => {
@@ -1645,6 +1875,8 @@ export default function Home() {
   const last7 = lastNDatesFrom(todayDate, 7);
   const weekSlots = last7.map((d) => ({ date: d, row: historyByDate[d] || null }));
   const withData = weekSlots.filter((s) => hasFood(s.row));
+  // Any logging counts as showing up: food, a weigh-in, or burned calories.
+  const showedUpDays = weekSlots.filter((s) => s.row && (hasFood(s.row) || (s.row.weight != null && s.row.weight !== '') || Number(s.row.active_calories) > 0)).length;
   const avg = (key) =>
     withData.length > 0 ? Math.round(withData.reduce((a, s) => a + (Number(s.row[key]) || 0), 0) / withData.length) : 0;
   const avgWeekCal = avg('calories');
@@ -1672,6 +1904,21 @@ export default function Home() {
           onEdit={(step) => { setEditStep(step); setEditingProfile(true); }}
           onSetup={() => { setEditStep(null); setEditingProfile(true); }}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {planOpen && (
+        <PlanSheet
+          key={planOpen}
+          title={planOpen === tomorrowDate ? 'Plan tomorrow' : "Today's plan"}
+          sub={ymdToDate(planOpen).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          initial={plans[planOpen] || {}}
+          busy={planBusy}
+          drafting={planDrafting}
+          error={planError}
+          onDraft={draftTomorrowMeals}
+          onSave={(plan) => savePlan(planOpen, plan)}
+          onClose={() => { setPlanOpen(null); setPlanError(''); }}
         />
       )}
 
@@ -1826,7 +2073,7 @@ export default function Home() {
                 <div className="intake-title">{viewDate === todayDate ? 'Daily intake' : "This day's intake"}</div>
                 <div className="intake-kcal">
                   {Math.round(totals.calories).toLocaleString()} / {TDEE.toLocaleString()} kcal
-                  {deficit < 0 && <span className="intake-over">{Math.abs(deficit).toLocaleString()} over</span>}
+                  {deficit < 0 && <span className="intake-over" aria-label={`${Math.abs(deficit).toLocaleString()} above target`}>+{Math.abs(deficit).toLocaleString()}</span>}
                 </div>
               </div>
               <div className="bar-track">
@@ -1862,6 +2109,9 @@ export default function Home() {
                 </button>
               </div>
             </div>
+            {viewDate === todayDate && planHasContent(plans[todayDate]) && (
+              <PlanCard title="Today's plan" plan={plans[todayDate]} onEdit={() => setPlanOpen(todayDate)} onToggleDone={() => togglePlanDone(todayDate)} />
+            )}
             <div className="card">
               <div className="card-header">
                 <div className="card-title">Add a meal</div>
@@ -1955,6 +2205,17 @@ export default function Home() {
                   })
               }
             </div>
+
+            {viewDate === todayDate && planHasContent(plans[tomorrowDate]) && (
+              <PlanCard title="Tomorrow's plan" plan={plans[tomorrowDate]} onEdit={() => setPlanOpen(tomorrowDate)} />
+            )}
+            {viewDate === todayDate && evening && !planHasContent(plans[tomorrowDate]) && (
+              <div className="card plan-prompt">
+                <div className="card-title">Plan tomorrow</div>
+                <div className="set-empty">A few quiet minutes tonight makes tomorrow easier: pick a way to move that sounds good, set it up, and sketch your meals.</div>
+                <button type="button" className="btn-primary small" onClick={() => setPlanOpen(tomorrowDate)}>Plan tomorrow</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1967,11 +2228,21 @@ export default function Home() {
               <div className="ctx-item"><div className="ctx-label">Fiber left</div><div className="ctx-value">{fiberLeft}g</div></div>
             </div>
 
-            <div className="card">
+            <div className="card chat-card" ref={chatCardRef}>
               <div className="chat" ref={chatRef}>
                 {chatHistory.length === 0 && (
                   <div className="chat-empty">
-                    Hey! Just talk to me: what to eat next, what you can make from your kitchen,{'\n'}how your day is going, or a recipe that fits your macros.{'\n'}You have <strong>{remaining} kcal</strong>, <strong>{proteinLeft}g protein</strong> and <strong>{fiberLeft}g fiber</strong> left.
+                    {deficit < 0 ? (
+                      <>Today ran above target. That's one day, not a verdict. A simple, protein-forward meal is a good next step, and I can plan the rest of your day if you like.</>
+                    ) : (
+                    <>Hey! Just talk to me: what to eat next, what you can make from your kitchen,{'\n'}how your day is going, or a recipe that fits your macros.{'\n'}You have <strong>{remaining} kcal</strong>, <strong>{proteinLeft}g protein</strong> and <strong>{fiberLeft}g fiber</strong> left.</>
+                    )}
+                    {profile.why && <div className="chat-why">Your why: {profile.why}</div>}
+                    <div className="chat-chips">
+                      {[deficit < 0 ? 'Plan the rest of my day' : 'What should I eat next?', "Plan tomorrow's meals", 'Easy ways to move today'].map((q) => (
+                        <button key={q} type="button" className="chat-chip" disabled={advisorLoading} onClick={() => sendAdvisorMessage(q)}>{q}</button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {chatHistory.map((m, i) => (
@@ -2049,6 +2320,8 @@ export default function Home() {
                   <div className="composer-row">
                     <textarea
                       ref={composerRef}
+                      onFocus={() => { composerFocused.current = true; updateKeyboard.current(); setTimeout(() => updateKeyboard.current(), 350); }}
+                      onBlur={() => { composerFocused.current = false; updateKeyboard.current(); }}
                       rows={1}
                       value={advisorInput}
                       onChange={(e) => setAdvisorInput(e.target.value)}
@@ -2088,6 +2361,7 @@ export default function Home() {
                 <div className="card-title">This week</div>
                 <div className="week-range">{weekRange}</div>
               </div>
+              <div className="week-headline">{showedUpDays > 0 ? `You showed up ${showedUpDays} of 7 days` : 'A fresh week. Log anything to get started.'}</div>
               <div className="week-strip">
                 {weekSlots.map(({ date: d, row }) => {
                   const logged = hasFood(row);
@@ -2117,7 +2391,7 @@ export default function Home() {
               </div>
               {withData.length > 0 && (
                 <div className="week-goals">
-                  Protein goal on {daysProteinHit} of {withData.length} logged days · fiber goal on {daysFiberHit} of {withData.length}
+                  Hit your protein goal on {daysProteinHit} of {withData.length} logged {withData.length === 1 ? 'day' : 'days'} and fiber on {daysFiberHit}
                 </div>
               )}
               <div className="week-sub">Daily averages</div>

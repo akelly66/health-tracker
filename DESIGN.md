@@ -77,3 +77,14 @@ Each box (tile) gets its own hue so the tab isn't tonal, and the color means som
 1. Pick the role it plays, then the token for that role.
 2. If it needs a color no token covers, stop and extend `lib/theme.js` deliberately (and update this file).
 3. Run `npm run check:design`.
+
+## Voice and habits
+
+The app should make it easier to keep going, not grade the day.
+
+- A day over target is data. Show it neutrally ("+140", blue), never as red, "over" or a warning. After a rough day the chat offers a plan for the rest of the day.
+- Count effort generously: any logging (food, a weigh-in, burned calories) is "showing up". Prefer "5 of 7 days" to streaks, since a broken streak makes people quit ("what the hell" effect).
+- Movement is framed as something that feels good (fun, relaxing, social), and everyday movement counts.
+- No guilt words anywhere, including the advisor ("cheat", "bad", "failed", "blew it").
+- Make the next day automatic: "Plan tomorrow" (move, when, set it up, meals) is written the evening before and shown the next morning.
+- The user's own "why" is shown back to them in Settings and the Meal Plan chat.

@@ -190,7 +190,7 @@ export function WeightChart({ weighIns = [], profile }) {
       const diff = trend.at(lastMs) - expected;
       const losing = goalW < startW;
       const ahead = losing ? diff < 0 : diff > 0;
-      paceStatus = Math.abs(diff) < 0.5 ? 'On pace' : `${Math.abs(diff).toFixed(1)} lb ${ahead ? 'ahead of' : 'behind'} pace`;
+      paceStatus = Math.abs(diff) < 0.5 ? 'On pace' : ahead ? `${Math.abs(diff).toFixed(1)} lb ahead of pace` : `${Math.abs(diff).toFixed(1)} lb behind pace. Weight bounces, so the trend matters more than any one day.`;
     }
   }
 

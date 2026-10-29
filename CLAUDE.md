@@ -22,7 +22,8 @@ Next.js (Pages Router) macro and weight tracker backed by Postgres (Neon) and th
 ## Notes
 
 - The model name is configured in `lib/model.js` (`ANTHROPIC_MODEL` overrides it).
-- Database schema is in `scripts/schema.sql` (idempotent; safe to re-run).
+- Database schema is in `scripts/schema.sql` (idempotent; safe to re-run). Run new `ALTER`/`CREATE` statements against the database before deploying code that reads them.
+- Tone: never frame a day as a failure (no red, no "over", no guilt words). See the habits notes in DESIGN.md.
 - Icons are generated from the palette: `npm run make:icons` (scripts/make-icons.js).
 - The font (DM Sans) is self-hosted through next/font in pages/_app.js.
 - Secrets live in `.env.local` (git-ignored): `ANTHROPIC_API_KEY`, `POSTGRES_URL`, `USDA_API_KEY`.

@@ -14,6 +14,7 @@ const DEFAULTS = {
   carb_target: 170,
   fat_target: 53,
   diet_prefs: '',
+  why: '',
   fitness_goal: '',
   age: null,
   height_in: null,
@@ -40,7 +41,7 @@ export default async function handler(req, res) {
         SELECT onboarded, start_weight, to_char(start_date, 'YYYY-MM-DD') AS start_date,
                goal_weight, to_char(goal_date, 'YYYY-MM-DD') AS goal_date,
                weigh_in_mode, weigh_in_day, calorie_target, protein_target, fiber_target,
-               carb_target, fat_target, diet_prefs, fitness_goal, age, height_in, sex, activity
+               carb_target, fat_target, diet_prefs, why, fitness_goal, age, height_in, sex, activity
         FROM profile WHERE id = 1
       `;
       if (!rows.length) return res.status(200).json(DEFAULTS);
@@ -55,6 +56,7 @@ export default async function handler(req, res) {
         sex: r.sex || DEFAULTS.sex,
         activity: r.activity || DEFAULTS.activity,
         diet_prefs: r.diet_prefs || '',
+        why: r.why || '',
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -82,15 +84,17 @@ export default async function handler(req, res) {
   const sex = SEXES.includes(b.sex) ? b.sex : 'unspecified';
   const activity = ACTIVITIES.includes(b.activity) ? b.activity : 'light';
   const prefs = typeof b.diet_prefs === 'string' ? b.diet_prefs.slice(0, 4000) : '';
+  // Left out of the request means "keep what's saved", so an older cached page can't wipe it.
+  const why = typeof b.why === 'string' ? b.why.trim().slice(0, 300) : null;
 
   try {
     await sql`
       INSERT INTO profile (id, onboarded, start_weight, start_date, goal_weight, goal_date,
                            weigh_in_mode, weigh_in_day, calorie_target, protein_target,
-                           fiber_target, carb_target, fat_target, diet_prefs,
+                           fiber_target, carb_target, fat_target, diet_prefs, why,
                            fitness_goal, age, height_in, sex, activity, updated_at)
       VALUES (1, TRUE, ${startWeight}, ${startDate}::date, ${goalWeight}, ${goalDate}::date,
-              ${mode}, ${day}, ${calories}, ${protein}, ${fiber}, ${carbs}, ${fat}, ${prefs},
+              ${mode}, ${day}, ${calories}, ${protein}, ${fiber}, ${carbs}, ${fat}, ${prefs}, COALESCE(${why}, ''),
               ${goalKind}, ${age}, ${heightIn}, ${sex}, ${activity}, NOW())
       ON CONFLICT (id) DO UPDATE SET
         onboarded = TRUE,
@@ -106,6 +110,7 @@ export default async function handler(req, res) {
         carb_target = EXCLUDED.carb_target,
         fat_target = EXCLUDED.fat_target,
         diet_prefs = EXCLUDED.diet_prefs,
+        why = COALESCE(${why}::text, profile.why),
         fitness_goal = EXCLUDED.fitness_goal,
         age = EXCLUDED.age,
         height_in = EXCLUDED.height_in,
