@@ -59,3 +59,22 @@ CREATE TABLE IF NOT EXISTS plans (
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Saved meals and recipes. Macros are per one serving; servings_left is optional (portions left from a batch).
+CREATE TABLE IF NOT EXISTS library (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  calories INTEGER NOT NULL DEFAULT 0,
+  protein INTEGER NOT NULL DEFAULT 0,
+  carbs INTEGER NOT NULL DEFAULT 0,
+  fat INTEGER NOT NULL DEFAULT 0,
+  fiber INTEGER NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  servings_left NUMERIC(6,2),
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used DATE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Leftover counts can be fractions (a third of a batch), so keep two decimals.
+ALTER TABLE library ALTER COLUMN servings_left TYPE NUMERIC(6,2);

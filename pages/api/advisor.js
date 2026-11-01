@@ -30,6 +30,21 @@ async function loadProfile() {
   }
 }
 
+// Their saved meals, so the advisor can suggest them and mention leftovers.
+async function loadLibrary() {
+  try {
+    const { rows } = await sql`
+      SELECT name, calories, protein, carbs, fat, fiber, servings_left
+      FROM library
+      ORDER BY last_used DESC NULLS LAST, use_count DESC
+      LIMIT 15
+    `;
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -54,7 +69,7 @@ export default async function handler(req, res) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
     .slice(-MAX_HISTORY_MESSAGES);
   while (chatHistory.length && chatHistory[0].role !== 'user') chatHistory = chatHistory.slice(1);
-  const profile = await loadProfile();
+  const [profile, libraryRows] = await Promise.all([loadProfile(), loadLibrary()]);
   const TDEE = profile?.calorie_target || DEFAULT_TARGETS.calorie_target;
   const PROTEIN_TARGET = profile?.protein_target || DEFAULT_TARGETS.protein_target;
   const FIBER_TARGET = profile?.fiber_target || DEFAULT_TARGETS.fiber_target;
@@ -81,8 +96,12 @@ export default async function handler(req, res) {
     ? `\nTheir dietary preferences, in their own words (likes, dislikes, allergies, pantry staples, what they usually buy). Respect allergies strictly and lean on these when suggesting food:\n${profile.diet_prefs.trim()}\n`
     : '';
 
+  const libraryBlock = libraryRows.length
+    ? `\nMeals they've saved in their library (macros are per serving). Prefer suggesting these by their exact name when they fit, and mention leftovers when servings are left:\n${libraryRows.map((m) => `- ${m.name}: ${m.calories} kcal, P${m.protein}g C${m.carbs}g F${m.fat}g Fiber${m.fiber}g${m.servings_left != null ? ` (${Number(m.servings_left)} servings left)` : ''}`).join('\n')}\n`
+    : '';
+
   const system = `You are a precise, data-driven nutrition advisor in an ongoing conversation with someone tracking macros for their health. ${goalLine}
-${prefsBlock}
+${prefsBlock}${libraryBlock}
 Their stats today:
 - Calorie target: ${TDEE} kcal | Protein target: ${PROTEIN_TARGET}g | Fiber target: ${FIBER_TARGET}g
 - Eaten: ${Math.round(totals.calories)} kcal | P${Math.round(totals.protein)}g C${Math.round(totals.carbs)}g F${Math.round(totals.fat)}g Fiber${Math.round(totals.fiber || 0)}g

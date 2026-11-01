@@ -1236,6 +1236,444 @@ function PlanCard({ title, plan, onEdit, onToggleDone }) {
   );
 }
 
+const LibraryIcon = ({ size = 14 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+  </svg>
+);
+
+const TrashIcon = ({ size = 15 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+  </svg>
+);
+
+// Reads an image file into a base64 JPEG, scaled so its longest side is at most `max` pixels.
+function resizeImage(file, max = 800, quality = 0.6) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('read'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > max || height > max) {
+          if (width > height) { height = Math.round((height * max) / width); width = max; }
+          else { width = Math.round((width * max) / height); height = max; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+const SERVING_OPTIONS = [0.5, 1, 1.5, 2];
+const servingChipLabel = (s) => (s === 0.5 ? '½' : s === 1.5 ? '1½' : String(s));
+const servingsWords = (s) => (s === 0.5 ? '½ serving' : s === 1 ? '1 serving' : s === 1.5 ? '1½ servings' : `${+s.toFixed(2)} servings`);
+
+// A typed portion -> a number of servings, or null if it isn't one. Accepts 0.75, .5, 3/4, 1 1/2, ½, 1½ and "2 servings".
+function parseServings(text) {
+  const t = String(text || '').toLowerCase().replace(/servings?|x/g, '').trim();
+  const unicode = { '½': 1 / 2, '¼': 1 / 4, '¾': 3 / 4, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 1 / 8 };
+  let total = null;
+  let m;
+  if ((m = t.match(/^(\d+)?\s*([½¼¾⅓⅔⅛])$/))) total = (m[1] ? Number(m[1]) : 0) + unicode[m[2]];
+  else if ((m = t.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/)) && Number(m[3])) total = Number(m[1]) + Number(m[2]) / Number(m[3]);
+  else if ((m = t.match(/^(\d+)\s*\/\s*(\d+)$/)) && Number(m[2])) total = Number(m[1]) / Number(m[2]);
+  else if ((m = t.match(/^(\d*\.?\d+)$/))) total = Number(m[1]);
+  return total > 0 && total <= 20 ? Math.round(total * 1000) / 1000 : null;
+}
+
+// Chat messages that read like a recipe (so the library can pull out the ingredients and method).
+const looksLikeRecipe = (text) => text.length >= 320 && /\b(ingredients?|serves|servings?|bake|cook|simmer|stir|oven|saut[eé]|marinate|recipe|tbsp|tsp|cups?)\b/i.test(text);
+
+// What to open the library editor with for a chat message. A recipe-like message is read, so the ingredients and method
+// come along (keeping the macros the advisor showed); a short one just prefills those macros.
+function libraryFromChat(message, meal) {
+  const text = String(message.content || '');
+  if (!looksLikeRecipe(text)) return { initial: meal };
+  return {
+    read: {
+      text,
+      focus: meal ? meal.name : '',
+      override: meal ? { name: meal.name, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, fiber: meal.fiber } : null,
+    },
+  };
+}
+const libraryMacroLine = (m) => `${m.calories} kcal · P${m.protein} C${m.carbs} F${m.fat} Fi${m.fiber}`;
+const libraryJson = { 'Content-Type': 'application/json' };
+
+// Add or edit a saved meal. A new one can be read from a recipe screenshot, pasted text, a meal logged today, or typed.
+function LibraryEditor({ initial, read, todayMeals = [], onSaved, onDeleted, onClose }) {
+  useEscape(onClose);
+  const editingId = initial && initial.id != null ? initial.id : null;
+  const str = (v) => (v == null ? '' : String(v));
+  const [stage, setStage] = useState(initial ? 'form' : read ? 'reading' : 'source'); // source | paste | today | reading | form
+  const [name, setName] = useState(initial ? str(initial.name) : '');
+  const [cal, setCal] = useState(initial ? str(initial.calories) : '');
+  const [pro, setPro] = useState(initial ? str(initial.protein) : '');
+  const [carb, setCarb] = useState(initial ? str(initial.carbs) : '');
+  const [fat, setFat] = useState(initial ? str(initial.fat) : '');
+  const [fib, setFib] = useState(initial ? str(initial.fiber) : '');
+  const [left, setLeft] = useState(initial ? str(initial.servings_left) : '');
+  const [notes, setNotes] = useState(initial ? str(initial.notes) : '');
+  const [pasted, setPasted] = useState('');
+  const [reading, setReading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [fromAi, setFromAi] = useState(false);
+  const fileRef = useRef(null);
+
+  function fill(m) {
+    setName(str(m.name));
+    setCal(str(m.calories));
+    setPro(str(m.protein));
+    setCarb(str(m.carbs));
+    setFat(str(m.fat));
+    setFib(str(m.fiber));
+    setLeft(m.servings != null ? str(m.servings) : '');
+    setNotes(str(m.notes));
+  }
+
+  async function readRecipe({ files, text, focus, override }) {
+    setReading(true);
+    setError('');
+    try {
+      const photos = files && files.length ? await Promise.all([...files].slice(0, 3).map((f) => resizeImage(f, 1400, 0.75))) : [];
+      const res = await fetch('/api/recipe', {
+        method: 'POST',
+        headers: libraryJson,
+        body: JSON.stringify({ photos: photos.map(({ base64, mediaType }) => ({ base64, mediaType })), text: text || '', focus: focus || '' }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not read that recipe');
+      // Keep the macros the advisor already showed, and take the ingredients and method from the recipe.
+      fill(override ? { ...j, ...override } : j);
+      setFromAi(true);
+      setStage('form');
+    } catch (e) {
+      if (read) {
+        // Don't lose the recipe: fall back to the message text as notes, with the advisor's macros.
+        fill({ ...(override || {}), notes: String(text || '').slice(0, 3000) });
+        setError("Couldn't read the recipe details, so the message text was kept as notes.");
+        setStage('form');
+      } else {
+        setError(e.message === 'read' ? "Couldn't read that photo. Try another one." : e.message);
+      }
+    }
+    setReading(false);
+  }
+
+  useEffect(() => {
+    if (read) readRecipe(read);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onFiles(e) {
+    const files = e.target.files;
+    if (files && files.length) readRecipe({ files: [...files] });
+    e.target.value = '';
+  }
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: libraryJson,
+        body: JSON.stringify({
+          id: editingId,
+          name,
+          calories: Number(cal) || 0,
+          protein: Number(pro) || 0,
+          carbs: Number(carb) || 0,
+          fat: Number(fat) || 0,
+          fiber: Number(fib) || 0,
+          notes,
+          servings_left: left === '' ? null : Number(left),
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not save');
+      onSaved(j.item);
+    } catch (e) {
+      setError(e.message);
+    }
+    setSaving(false);
+  }
+
+  async function remove() {
+    if (!window.confirm(`Remove "${name}" from your library?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/library?id=${editingId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not remove');
+      onDeleted(editingId);
+    } catch (e) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  const num = (label, value, set) => (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <input className="field-input text" type="number" inputMode="decimal" min="0" value={value} onChange={(e) => set(e.target.value)} />
+    </label>
+  );
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label={editingId ? 'Edit saved meal' : 'Add to your library'} onClick={(e) => e.stopPropagation()}>
+        {stage === 'source' && (
+          <>
+            <div className="modal-title">Add to your library</div>
+            <div className="modal-sub">Save a meal once, then add it any day with a tap.</div>
+            <div className="lib-source">
+              <button type="button" className="lib-source-btn" disabled={reading} onClick={() => fileRef.current && fileRef.current.click()}>
+                <CameraIcon size={16} />
+                <span><b>{reading ? 'Reading your recipe…' : 'Photo or screenshot of a recipe'}</b><small>Pick up to 3 images. The ingredients, servings and macros are read for you.</small></span>
+              </button>
+              <button type="button" className="lib-source-btn" disabled={reading} onClick={() => setStage('paste')}>
+                <LibraryIcon size={16} />
+                <span><b>Paste or type a recipe</b><small>Copy it from a website or a message.</small></span>
+              </button>
+              {todayMeals.length > 0 && (
+                <button type="button" className="lib-source-btn" disabled={reading} onClick={() => setStage('today')}>
+                  <UtensilsIcon size={16} color="currentColor" />
+                  <span><b>A meal I logged today</b><small>Save something you already added.</small></span>
+                </button>
+              )}
+              <button type="button" className="lib-source-btn" disabled={reading} onClick={() => setStage('form')}>
+                <PlusIcon size={14} />
+                <span><b>Enter it by hand</b><small>Name and macros per serving.</small></span>
+              </button>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />
+            {error && <div className="status status-error">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+
+        {stage === 'reading' && (
+          <>
+            <div className="modal-title">Reading the recipe…</div>
+            <div className="modal-sub">Pulling out the ingredients and method.</div>
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+
+        {stage === 'paste' && (
+          <>
+            <div className="modal-title">Paste a recipe</div>
+            <div className="modal-sub">Include the ingredients and how many servings it makes.</div>
+            <textarea className="prefs-input" rows={9} maxLength={8000} autoFocus value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder={'Turkey and black bean chili\nMakes 4 servings\n1 lb ground turkey...'} />
+            {error && <div className="status status-error">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={() => { setError(''); setStage('source'); }}>Back</button>
+              <button type="button" className="btn-primary" disabled={reading || !pasted.trim()} onClick={() => readRecipe({ text: pasted })}>
+                {reading ? 'Reading…' : 'Read recipe'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === 'today' && (
+          <>
+            <div className="modal-title">Save a meal from today</div>
+            <div className="modal-sub">Pick one. You can change anything before saving.</div>
+            <div className="lib-source">
+              {todayMeals.map((m) => (
+                <button key={m.id} type="button" className="lib-source-btn" onClick={() => { fill(m); setStage('form'); }}>
+                  <span><b>{m.name}</b><small>{libraryMacroLine({ ...m, fiber: Math.round(Number(m.fiber) || 0) })}</small></span>
+                </button>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={() => setStage('source')}>Back</button>
+            </div>
+          </>
+        )}
+
+        {stage === 'form' && (
+          <>
+            <div className="modal-title">{editingId ? 'Edit saved meal' : 'Save to your library'}</div>
+            <div className="modal-sub">Numbers are for one serving.</div>
+            {fromAi && <div className="pace-note suggest lib-note">Read from your recipe. Check the numbers before you save.</div>}
+            <label className="field">
+              <span className="field-label">Name</span>
+              <input className="field-input text" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} placeholder="Turkey and black bean chili" />
+            </label>
+            <div className="lib-macro-grid">
+              {num('Calories', cal, setCal)}
+              {num('Protein (g)', pro, setPro)}
+              {num('Carbs (g)', carb, setCarb)}
+              {num('Fat (g)', fat, setFat)}
+              {num('Fiber (g)', fib, setFib)}
+              {num('Servings left', left, setLeft)}
+            </div>
+            <div className="lib-hint">Servings left is optional. It counts down each time you add a serving, so you know how many leftovers remain.</div>
+            <label className="field">
+              <span className="field-label">Ingredients and method (optional)</span>
+              <textarea className="prefs-input" rows={5} maxLength={3000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+            {error && <div className="status status-error">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={saving || !name.trim()} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+            </div>
+            {editingId && (
+              <button type="button" className="link-quiet" disabled={saving} onClick={remove}>Remove from library</button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Saved meals: tap Add to put a serving on today. `onAdd(meal)` receives the macros already scaled to the servings chosen.
+function LibrarySheet({ date, todayMeals, onAdd, onClose }) {
+  const [items, setItems] = useState(null); // null while loading
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [servingText, setServingText] = useState({}); // id -> what's typed in the portion box (defaults to "1")
+  const [editor, setEditor] = useState(null); // { initial } while the editor is open
+  useEscape(editor ? null : onClose);
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const res = await fetch('/api/library');
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not load your library');
+      setItems(j.items || []);
+    } catch (e) {
+      setError(e.message);
+      setItems([]);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function remove(item) {
+    if (!window.confirm(`Remove "${item.name}" from your library?`)) return;
+    try {
+      const res = await fetch(`/api/library?id=${item.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not remove that meal');
+      setItems((prev) => (prev || []).filter((i) => i.id !== item.id));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  function add(item) {
+    const s = parseServings(servingText[item.id] ?? '1');
+    if (!s) return;
+    const scale = (v) => Math.round((Number(v) || 0) * s);
+    onAdd({
+      name: s === 1 ? item.name : cleanMealName(`${item.name} (${servingsWords(s)})`),
+      calories: scale(item.calories),
+      protein: scale(item.protein),
+      carbs: scale(item.carbs),
+      fat: scale(item.fat),
+      fiber: scale(item.fiber),
+      confidence: 'High',
+    });
+    // Remember it and count down leftovers. The meal is already added, so a failure here only costs the bookkeeping.
+    fetch('/api/library', { method: 'POST', headers: libraryJson, body: JSON.stringify({ action: 'use', id: item.id, servings: s, date }) }).catch(() => {});
+  }
+
+  const q = query.trim().toLowerCase();
+  const shown = (items || []).filter((i) => !q || i.name.toLowerCase().includes(q));
+
+  return (
+    <>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label="Your meal library" onClick={(e) => e.stopPropagation()}>
+        <div className="set-head">
+          <div className="modal-title">Your library</div>
+          <button type="button" className="set-edit" onClick={() => setEditor({ initial: null })}>+ Add</button>
+        </div>
+        <div className="modal-sub">Saved meals and recipes. Add a serving to today with one tap.</div>
+        {items && items.length > 5 && (
+          <input className="field-input text lib-search" aria-label="Search your library" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+        )}
+        {error && <div className="status status-error">{error} <button type="button" className="link-btn-inline" onClick={load}>Try again</button></div>}
+        {items === null && <div className="set-empty">Loading…</div>}
+        {items && items.length === 0 && !error && (
+          <div className="lib-empty">
+            <div className="set-empty">Nothing here yet. Save a recipe from a screenshot once, and you won't need to upload it again.</div>
+            <button type="button" className="btn-primary small" onClick={() => setEditor({ initial: null })}>Add your first meal</button>
+          </div>
+        )}
+        {items && items.length > 0 && shown.length === 0 && <div className="set-empty">No matches.</div>}
+        <div className="lib-list">
+          {shown.map((item) => {
+            const text = servingText[item.id] ?? '1';
+            const s = parseServings(text);
+            return (
+              <div key={item.id} className="lib-row">
+                <div className="lib-name">
+                  {item.name}
+                  {item.servings_left != null && (
+                    <span className={`lib-left${item.servings_left <= 0 ? ' none' : ''}`}>{item.servings_left <= 0 ? 'none left' : `${+Number(item.servings_left).toFixed(2)} left`}</span>
+                  )}
+                </div>
+                <div className="lib-macros">{libraryMacroLine(item)}</div>
+                <div className="lib-portion">
+                  <div className="serv-chips" role="group" aria-label={`Servings of ${item.name}`}>
+                    {SERVING_OPTIONS.map((o) => (
+                      <button key={o} type="button" className={`serv-chip${s === o ? ' on' : ''}`} aria-pressed={s === o} onClick={() => setServingText((p) => ({ ...p, [item.id]: String(o) }))}>{servingChipLabel(o)}</button>
+                    ))}
+                  </div>
+                  <label className="serv-input">
+                    <span className="sr-only">Servings of {item.name}</span>
+                    <input type="text" value={text} placeholder="1" aria-invalid={!s} onChange={(e) => setServingText((p) => ({ ...p, [item.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') add(item); }} />
+                    <span className="serv-unit">{s === 1 ? 'serving' : 'servings'}</span>
+                  </label>
+                </div>
+                <div className="lib-actions">
+                  <span className="lib-adds">{s ? `Adds ${Math.round(item.calories * s)} kcal · P${Math.round(item.protein * s)}g` : 'Type an amount like 0.75 or 1/3'}</span>
+                  <button type="button" className="icon-btn-sm" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><TrashIcon size={15} /></button>
+                  <button type="button" className="set-edit" onClick={() => setEditor({ initial: item })}>Edit</button>
+                  <button type="button" className="btn-primary small" disabled={!s} onClick={() => add(item)}>Add</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+    {editor && (
+      <LibraryEditor
+        initial={editor.initial}
+        todayMeals={todayMeals}
+        onSaved={(item) => { setEditor(null); setItems((prev) => { const rest = (prev || []).filter((i) => i.id !== item.id); return [item, ...rest]; }); }}
+        onDeleted={(id) => { setEditor(null); setItems((prev) => (prev || []).filter((i) => i.id !== id)); }}
+        onClose={() => setEditor(null)}
+      />
+    )}
+    </>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState('log');
   const [meals, setMeals] = useState([]);
@@ -1360,6 +1798,8 @@ export default function Home() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editStep, setEditStep] = useState(null); // which settings section is being edited (null = the full setup flow)
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryEdit, setLibraryEdit] = useState(null); // { initial } when saving a meal to the library from the chat
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
 
@@ -1757,6 +2197,22 @@ export default function Home() {
     }
   }
 
+  function addLibraryMeal(meal) {
+    setMeals((prev) => [...prev, { ...meal, id: newMealId(), type: 'Meal', synced: false }]);
+    if (tab === 'advisor') {
+      // Added from the chat: say so in the conversation, which also tells the advisor what was eaten.
+      setChatHistory((h) => [...h, {
+        role: 'assistant',
+        content: `Added **${meal.name}** from your library: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g.`,
+        action: 'log_meal',
+      }]);
+    } else {
+      setMealStatus({ text: `✓ Added: ${meal.name} (${meal.calories} kcal)`, type: 'success' });
+      setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
+    }
+    setLibraryOpen(false);
+  }
+
   function addScannedMeal(meal) {
     setMeals((prev) => [...prev, { ...meal, id: newMealId(), type: 'Meal', synced: false }]);
     if (tab === 'advisor') {
@@ -1981,6 +2437,23 @@ export default function Home() {
         />
       )}
 
+      {libraryOpen && (
+        <LibrarySheet date={viewDate} todayMeals={meals} onAdd={addLibraryMeal} onClose={() => setLibraryOpen(false)} />
+      )}
+      {libraryEdit && (
+        <LibraryEditor
+          initial={libraryEdit.initial}
+          read={libraryEdit.read}
+          todayMeals={meals}
+          onSaved={(item) => {
+            setLibraryEdit(null);
+            if (tab === 'advisor') setChatHistory((h) => [...h, { role: 'assistant', content: `Saved **${item.name}** to your library.` }]);
+          }}
+          onDeleted={() => setLibraryEdit(null)}
+          onClose={() => setLibraryEdit(null)}
+        />
+      )}
+
       {(showOnboarding || editingProfile) && (
         <Onboarding
           key={editingProfile ? `edit-${editStep}` : 'first'}
@@ -2174,6 +2647,7 @@ export default function Home() {
             <div className="card">
               <div className="card-header">
                 <div className="card-title">Add a meal</div>
+                <button type="button" className="set-edit lib-open" onClick={() => setLibraryOpen(true)}><LibraryIcon size={13} /> Library</button>
               </div>
               <div className="attach-row">
                 {photo ? (
@@ -2329,10 +2803,27 @@ export default function Home() {
                           </button>
                         </div>
                       )}
+                      {m.role === 'assistant' && m.mealData && (
+                        <div>
+                          <button type="button" className="log-this-btn quiet" onClick={() => setLibraryEdit(libraryFromChat(m, m.mealData))}>
+                            <LibraryIcon size={11} /> Save to library
+                          </button>
+                        </div>
+                      )}
+                      {m.role === 'assistant' && !m.mealData && !(m.mealOptions && m.mealOptions.length) && looksLikeRecipe(m.content) && (
+                        <div>
+                          <button type="button" className="log-this-btn quiet" onClick={() => setLibraryEdit(libraryFromChat(m, null))}>
+                            <LibraryIcon size={11} /> Save as recipe
+                          </button>
+                        </div>
+                      )}
                       {m.role === 'assistant' && m.mealOptions && m.mealOptions.map((opt, oi) => (
-                        <div key={oi}>
+                        <div key={oi} className="opt-actions">
                           <button className="log-this-btn" onClick={() => { setPrefillMeal(opt); setTab('log'); }}>
                             <PlusIcon size={11} /> Log: {opt.name}
+                          </button>
+                          <button type="button" className="log-this-btn quiet" onClick={() => setLibraryEdit(libraryFromChat(m, opt))}>
+                            <LibraryIcon size={11} /> Save
                           </button>
                         </div>
                       ))}
@@ -2364,6 +2855,9 @@ export default function Home() {
                       </button>
                       <button type="button" role="menuitem" className="attach-item" onClick={() => { setAttachOpen(false); setScanner({ stage: 'camera' }); }}>
                         <BarcodeIcon size={16} /> Scan barcode
+                      </button>
+                      <button type="button" role="menuitem" className="attach-item" onClick={() => { setAttachOpen(false); setLibraryOpen(true); }}>
+                        <LibraryIcon size={16} /> From library
                       </button>
                     </div>
                   )}
