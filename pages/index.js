@@ -56,6 +56,32 @@ function storageSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
 }
 
+// Meals that haven't been saved yet are kept on this device, per day, so closing or reloading the app can't lose them.
+// `dirty` means a saved meal was deleted, so the draft holds the whole day instead of just the new meals.
+const DRAFT_PREFIX = 'draft_';
+function readDraft(day) {
+  try {
+    const d = JSON.parse(storageGet(DRAFT_PREFIX + day) || 'null');
+    return d && Array.isArray(d.meals) ? { meals: d.meals, dirty: Boolean(d.dirty) } : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(day, meals, dirty) {
+  try {
+    if (meals.length || dirty) localStorage.setItem(DRAFT_PREFIX + day, JSON.stringify({ meals, dirty }));
+    else localStorage.removeItem(DRAFT_PREFIX + day);
+  } catch {}
+}
+function pruneDrafts(todayYmd) {
+  try {
+    const cutoff = addDaysToYMD(todayYmd, -14);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(DRAFT_PREFIX) && key.slice(DRAFT_PREFIX.length) < cutoff) localStorage.removeItem(key);
+    }
+  } catch {}
+}
+
 // The advisor chat is kept on this device for the day it started, so closing the app doesn't lose it.
 const CHAT_PREFIX = 'chat_';
 const MAX_SAVED_CHAT = 60;
@@ -1217,6 +1243,7 @@ export default function Home() {
   const [dayTotals, setDayTotals] = useState(ZERO_TOTALS); // stored totals for days whose meals can't be itemized
   const [dayError, setDayError] = useState(false);
   const loadSeq = useRef(0);
+  const mealsDate = useRef(null); // the day the `meals` state currently belongs to (it lags viewDate while a day loads)
   const [mealInput, setMealInput] = useState('');
   const [photo, setPhoto] = useState(null);
   const [mealLoading, setMealLoading] = useState(false);
@@ -1232,8 +1259,8 @@ export default function Home() {
   const [prefillMeal, setPrefillMeal] = useState(null);
   const chatRef = useRef(null);
   const composerRef = useRef(null);
-  const chatCardRef = useRef(null);
   const composerFocused = useRef(false);
+  const chatCardRef = useRef(null);
   const updateKeyboard = useRef(() => {});
   const chatPhotoInputRef = useRef(null);
   const [chatPhoto, setChatPhoto] = useState(null);
@@ -1394,7 +1421,7 @@ export default function Home() {
   // Returns false when the user chose to stay (they have meals that aren't saved yet).
   function changeDay(next) {
     if (next === viewDate) return true;
-    if ((pendingCount > 0 || mealsDirty) && !window.confirm('You have meals that are not saved yet. Switch days and discard them?')) return false;
+    // Unsaved meals are kept per day on this device, so switching days no longer discards them.
     setViewDate(next);
     return true;
   }
@@ -1418,16 +1445,21 @@ export default function Home() {
       const data = await res.json().catch(() => ({}));
       if (seq !== loadSeq.current) return;
       if (!res.ok) throw new Error(data.error || 'Could not load this day');
-      setMealsDirty(false);
+      // Unsaved meals from before (a closed or reloaded app) come back on top of what's saved.
+      const draft = readDraft(dateStr);
+      const fromDraft = (draft ? draft.meals : []).map((m) => ({ ...m, id: newMealId(), synced: false }));
+      const keepWholeDraft = Boolean(draft && draft.dirty);
+      mealsDate.current = dateStr;
+      setMealsDirty(keepWholeDraft);
       if (!data.found) {
-        setMeals([]);
+        setMeals(fromDraft);
         setDayTotals(ZERO_TOTALS);
         setWeight('');
         setActiveCalories('');
         setMealStatus({ text: '', type: '' });
         return;
       }
-      setMeals((data.meals || []).map((m) => ({ ...m, id: newMealId(), synced: true })));
+      setMeals(keepWholeDraft ? fromDraft : [...(data.meals || []).map((m) => ({ ...m, id: newMealId(), synced: true })), ...fromDraft]);
       setDayTotals({
         calories: data.calories || 0,
         protein: data.protein || 0,
@@ -1454,6 +1486,17 @@ export default function Home() {
       setMealStatus({ text: '', type: '' });
     }
   }, []);
+
+  useEffect(() => {
+    pruneDrafts(todayDate);
+  }, [todayDate]);
+
+  // Keep the unsaved meals for this day on the device. Skipped while a different day is still loading, or if loading failed.
+  useEffect(() => {
+    if (mealsDate.current !== viewDate || dayError) return;
+    const unsaved = meals.filter((m) => !m.synced);
+    writeDraft(viewDate, mealsDirty ? meals : unsaved, mealsDirty);
+  }, [meals, mealsDirty, viewDate, dayError]);
 
   useEffect(() => {
     loadDay(viewDate);
@@ -1524,36 +1567,52 @@ export default function Home() {
     return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', onKey); };
   }, [attachOpen]);
 
-  // Like Messages: while the keyboard is up, the chat card stretches down to the top of the keyboard, so the thread
-  // fills the middle and the message bar sits right on the keyboard (no empty gap). On iPhone the keyboard shrinks the
-  // visual viewport but not the page, so the height comes from visualViewport.
+  // Like Messages: while the keyboard is up, the chat becomes a card pinned to exactly the visible area above it, so the
+  // thread fills the middle and the message bar sits on the keyboard. iPhone doesn't resize the page for the keyboard and
+  // doesn't reliably announce when it finishes opening or closing, so this re-checks for a moment after every change
+  // (and while typing) instead of trusting one event. "Open" needs the box focused AND the visible area actually shrunk.
   useEffect(() => {
     const vv = window.visualViewport;
+    const root = document.documentElement;
+    let timers = [];
     const update = () => {
-      const keyboard = composerFocused.current || (vv ? window.innerHeight - vv.height > 120 : false);
-      document.documentElement.classList.toggle('kb-open', keyboard);
-      const card = chatCardRef.current;
-      if (!card) return;
-      if (keyboard && vv) {
-        const visibleBottom = vv.offsetTop + vv.height;
-        card.style.height = Math.max(260, visibleBottom - card.getBoundingClientRect().top - 8) + 'px';
-        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-      } else {
-        card.style.height = '';
+      const open = Boolean(vv) && composerFocused.current && window.innerHeight - vv.height > 120;
+      if (open) {
+        root.style.setProperty('--kb-top', vv.offsetTop + 'px');
+        root.style.setProperty('--kb-h', vv.height + 'px');
       }
+      const wasOpen = root.classList.contains('kb-open');
+      // The card leaves the page flow while the keyboard is up. Hold its space, so the page doesn't suddenly get
+      // shorter and make iOS jump the scroll position (that showed up as the chat shaking and bouncing).
+      const holder = chatCardRef.current && chatCardRef.current.parentElement;
+      if (holder) {
+        if (open && !wasOpen) holder.style.minHeight = holder.offsetHeight + 'px';
+        else if (!open && wasOpen) holder.style.minHeight = '';
+      }
+      root.classList.toggle('kb-open', open);
+      if (open && !wasOpen && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
     };
-    updateKeyboard.current = update;
+    const settle = () => {
+      timers.forEach(clearTimeout);
+      update();
+      timers = [100, 250, 500, 900, 1500].map((ms) => setTimeout(update, ms));
+    };
+    updateKeyboard.current = settle;
     if (vv) {
       vv.addEventListener('resize', update);
       vv.addEventListener('scroll', update);
     }
+    const poll = setInterval(() => {
+      if (composerFocused.current || root.classList.contains('kb-open')) update();
+    }, 400);
     return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(poll);
       if (vv) {
         vv.removeEventListener('resize', update);
         vv.removeEventListener('scroll', update);
       }
-      document.documentElement.classList.remove('kb-open');
-      if (chatCardRef.current) chatCardRef.current.style.height = '';
+      root.classList.remove('kb-open');
     };
   }, []);
 
@@ -1704,7 +1763,7 @@ export default function Home() {
       // Scanned from the chat: say so in the conversation, which also tells the advisor what was eaten.
       setChatHistory((h) => [...h, {
         role: 'assistant',
-        content: `Scanned and added **${meal.name}**: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g.`,
+        content: `Scanned and added **${meal.name}**: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g. Save it on the Track tab to keep it.`,
         action: 'log_meal',
       }]);
     } else {
@@ -2260,7 +2319,7 @@ export default function Home() {
                       )}
                       {m.role === 'assistant' && m.action === 'log_meal' && (
                         <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
-                          <CheckIcon size={10} /> Logged to your list
+                          <CheckIcon size={10} /> Added to your list. Save it on the Track tab.
                         </div>
                       )}
                       {m.role === 'assistant' && m.mealData && m.action !== 'log_meal' && (
@@ -2320,7 +2379,7 @@ export default function Home() {
                   <div className="composer-row">
                     <textarea
                       ref={composerRef}
-                      onFocus={() => { composerFocused.current = true; updateKeyboard.current(); setTimeout(() => updateKeyboard.current(), 350); }}
+                      onFocus={() => { composerFocused.current = true; updateKeyboard.current(); }}
                       onBlur={() => { composerFocused.current = false; updateKeyboard.current(); }}
                       rows={1}
                       value={advisorInput}

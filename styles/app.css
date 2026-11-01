@@ -95,10 +95,10 @@
   .log-this-btn:hover { background: var(--bg); }
   .chat-empty { font-size: 14px; color: var(--muted); text-align: center; padding: 32px 16px; line-height: 1.8; }
   .composer-bar { display: flex; align-items: flex-end; gap: 8px; }
-  .kb-open body, .kb-open .wrap { padding-bottom: 0; }
-  .kb-open .chat-card { display: flex; flex-direction: column; padding-bottom: 8px; margin-bottom: 0; }
+  html { --kb-top: 0px; --kb-h: 100dvh; } /* set from JS while the keyboard is up: the visible area above it */
+  .kb-open .sticky-top { opacity: 0; pointer-events: none; }
+  .kb-open .chat-card { position: fixed; z-index: 150; left: 12px; right: 12px; max-width: 536px; margin: 0 auto; top: calc(var(--kb-top, 0px) + env(safe-area-inset-top) + 8px); height: calc(var(--kb-h, 100dvh) - env(safe-area-inset-top) - 16px); padding-bottom: 8px; display: flex; flex-direction: column; }
   .kb-open .chat-card .chat { flex: 1; min-height: 0; max-height: none; }
-  .kb-open .ctx-bar { display: none; }
   .attach-wrap { position: relative; flex: none; }
   .attach-btn { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--green-tint); color: var(--accent); display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .attach-btn:hover { background: var(--green-soft); }
