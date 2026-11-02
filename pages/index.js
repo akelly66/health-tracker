@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { mealsToMealLogText } from '../lib/mealLog';
+import { normalizeMeal } from '../lib/nutrition';
 import { PREF_SECTIONS, parsePrefs, formatPrefs, splitItems } from '../lib/prefs';
 import miseGlyphs from '../lib/mise-glyphs.json';
 
@@ -271,11 +272,6 @@ function MiseWordmark({ height = 34 }) {
   );
 }
 
-const ZapIcon = ({ size = 14, style = {} }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" style={style}>
-    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-  </svg>
-);
 const GearIcon = ({ size = 16 }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/>
@@ -334,10 +330,12 @@ const mealTypeColors = {
   Snack:     { bg: 'var(--pink-soft)', icon: 'var(--pink)' },
 };
 
-function SwipeMealRow({ children, onDelete }) {
+// Swipe left to delete, swipe right to edit (a keyboard can press Delete or Enter on the focused row).
+function SwipeMealRow({ children, onDelete, onEdit }) {
   const wrapRef = useRef(null);
   const itemRef = useRef(null);
   const bgRef = useRef(null);
+  const editBgRef = useRef(null);
   const startX = useRef(0);
   const currentX = useRef(0);
   const isDragging = useRef(false);
@@ -360,18 +358,36 @@ function SwipeMealRow({ children, onDelete }) {
     setTimeout(onDelete, 400);
   }
 
-  // Keyboard users can't swipe, so Delete or Backspace on a focused row removes it too.
+  // Keyboard users can't swipe, so Delete or Backspace on a focused row removes it, and Enter edits it.
   function onKeyDown(e) {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       collapse();
+    } else if (e.key === 'Enter' && e.target === e.currentTarget && onEdit) {
+      e.preventDefault();
+      onEdit();
     }
   }
 
-  // The pink Delete strip only appears while a row is being dragged, so it never peeks out at rest.
-  function showDelete(dx) {
-    if (bgRef.current) bgRef.current.style.opacity = String(Math.min(1, Math.abs(dx) / 24));
+  // The Delete (pink) and Edit strips only appear while a row is being dragged their way, so they never peek out at rest.
+  function showStrips(dx) {
+    if (bgRef.current) bgRef.current.style.opacity = String(dx < 0 ? Math.min(1, -dx / 24) : 0);
+    if (editBgRef.current) editBgRef.current.style.opacity = String(dx > 0 ? Math.min(1, dx / 24) : 0);
   }
+
+  // Where the row lets go: delete past the threshold on the left, edit past it on the right (then it slides back).
+  function release() {
+    const dx = currentX.current;
+    if (dx <= -THRESHOLD) {
+      collapse();
+      return;
+    }
+    itemRef.current.style.transition = 'transform 0.2s ease';
+    itemRef.current.style.transform = 'translateX(0)';
+    showStrips(0);
+    if (dx >= THRESHOLD && onEdit) onEdit();
+  }
+  const drag = (dx) => Math.max(-200, Math.min(onEdit ? 140 : 0, dx));
 
   // Touch handlers
   function onTouchStart(e) {
@@ -382,20 +398,14 @@ function SwipeMealRow({ children, onDelete }) {
   }
   function onTouchMove(e) {
     if (!isDragging.current) return;
-    const dx = Math.min(0, e.touches[0].clientX - startX.current);
+    const dx = drag(e.touches[0].clientX - startX.current);
     currentX.current = dx;
     itemRef.current.style.transform = `translateX(${dx}px)`;
-    showDelete(dx);
+    showStrips(dx);
   }
   function onTouchEnd() {
     isDragging.current = false;
-    if (currentX.current <= -THRESHOLD) {
-      collapse();
-    } else {
-      itemRef.current.style.transition = 'transform 0.2s ease';
-      itemRef.current.style.transform = 'translateX(0)';
-      showDelete(0);
-    }
+    release();
     currentX.current = 0;
   }
 
@@ -410,27 +420,22 @@ function SwipeMealRow({ children, onDelete }) {
   }
   function onMouseMove(e) {
     if (!isDragging.current) return;
-    const dx = Math.min(0, e.clientX - startX.current);
+    const dx = drag(e.clientX - startX.current);
     currentX.current = dx;
     itemRef.current.style.transform = `translateX(${dx}px)`;
-    showDelete(dx);
+    showStrips(dx);
   }
   function onMouseUp() {
     isDragging.current = false;
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
-    if (currentX.current <= -THRESHOLD) {
-      collapse();
-    } else {
-      itemRef.current.style.transition = 'transform 0.2s ease';
-      itemRef.current.style.transform = 'translateX(0)';
-      showDelete(0);
-    }
+    release();
     currentX.current = 0;
   }
 
   return (
     <div className="meal-row-wrap" ref={wrapRef}>
+      <div className="meal-edit-bg" ref={editBgRef}>Fix</div>
       <div className="meal-delete-bg" ref={bgRef}>Delete</div>
       <div
         className="meal-item"
@@ -441,7 +446,7 @@ function SwipeMealRow({ children, onDelete }) {
         onMouseDown={onMouseDown}
         onKeyDown={onKeyDown}
         tabIndex={0}
-        aria-label="Meal. Swipe left or press Delete to remove."
+        aria-label="Meal. Swipe left or press Delete to remove. Swipe right or press Enter to fix it in the chat."
       >
         {children}
       </div>
@@ -1013,7 +1018,7 @@ function BarcodeResult({ state, onAdd, onClose, onScanAgain }) {
   } else if (status === 'notfound') {
     body = (
       <>
-        <div className="pace-note warn">USDA doesn't have this barcode ({code}). Close this, describe the food in the box, and tap Estimate instead.</div>
+        <div className="pace-note warn">USDA doesn't have this barcode ({code}). Close this, describe the food in the box, and tap Save instead.</div>
         <div className="modal-actions">
           <button type="button" className="btn-ghost" onClick={onClose}>Close</button>
           <button type="button" className="btn-primary" onClick={onScanAgain}>Scan another</button>
@@ -1094,6 +1099,52 @@ function BarcodeResult({ state, onAdd, onClose, onScanAgain }) {
       <div className="modal-sheet scan-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-title">{status === 'found' ? 'Found it' : 'Barcode lookup'}</div>
         {body}
+      </div>
+    </div>
+  );
+}
+
+// Change a meal you already added (swipe a meal right). The numbers go through normalizeMeal, so they stay whole numbers.
+function EditMealSheet({ meal, onSave, onClose }) {
+  useEscape(onClose);
+  const [name, setName] = useState(meal.name || '');
+  const [vals, setVals] = useState({
+    calories: String(meal.calories ?? ''),
+    protein: String(meal.protein ?? ''),
+    carbs: String(meal.carbs ?? ''),
+    fat: String(meal.fat ?? ''),
+    fiber: String(Math.round(Number(meal.fiber) || 0)),
+  });
+  const set = (k) => (e) => setVals((v) => ({ ...v, [k]: e.target.value }));
+  const field = (label, k) => (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <input className="field-input text" inputMode="numeric" type="number" min="0" value={vals[k]} onChange={set(k)} />
+    </label>
+  );
+  const save = () => {
+    if (!name.trim()) return;
+    onSave({ ...meal, ...normalizeMeal({ ...vals, name }) });
+  };
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" role="dialog" aria-modal="true" aria-label="Edit meal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title">Edit meal</div>
+        <label className="field">
+          <span className="field-label">Name</span>
+          <input className="field-input text" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <div className="lib-macro-grid">
+          {field('Calories', 'calories')}
+          {field('Protein (g)', 'protein')}
+          {field('Carbs (g)', 'carbs')}
+          {field('Fat (g)', 'fat')}
+          {field('Fiber (g)', 'fiber')}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-primary" disabled={!name.trim()} onClick={save}>Save</button>
+        </div>
       </div>
     </div>
   );
@@ -1677,6 +1728,10 @@ function LibrarySheet({ date, todayMeals, onAdd, onClose }) {
 export default function Home() {
   const [tab, setTab] = useState('log');
   const [meals, setMeals] = useState([]);
+  const mealsRef = useRef(meals); // the latest list, for code that runs after an await
+  mealsRef.current = meals;
+  const [editingMeal, setEditingMeal] = useState(null); // the manual "Edit numbers" sheet
+  const [chatMeal, setChatMeal] = useState(null); // a logged meal being fixed through the chat: { id }
   const [mealsDirty, setMealsDirty] = useState(false);
   const [dayTotals, setDayTotals] = useState(ZERO_TOTALS); // stored totals for days whose meals can't be itemized
   const [dayError, setDayError] = useState(false);
@@ -2166,8 +2221,11 @@ export default function Home() {
     reader.readAsDataURL(file);
   }
 
+  // Works out the macros for what was typed or photographed and adds the meal to today's list. Returns the new list and
+  // meal (so they can be saved right away), or null if it failed.
   async function estimateMeal() {
-    if (!mealInput.trim() && !photo && !prefillMeal) return;
+    if (!mealInput.trim() && !photo && !prefillMeal) return null;
+    let added = null;
     setMealLoading(true);
     setMealStatus({ text: 'Estimating macros...', type: 'loading' });
     try {
@@ -2186,16 +2244,37 @@ export default function Home() {
         macros = await estRes.json().catch(() => ({ error: 'The photo may be too large. Try a smaller one.' }));
         if (macros.error) throw new Error(macros.error);
       }
-      setMeals(prev => [...prev, { ...macros, id: newMealId(), fiber: Math.round(Number(macros.fiber) || 0), type: 'Meal', synced: false }]);
-      setMealStatus({ text: `✓ Added: ${macros.name} (${macros.calories} kcal)`, type: 'success' });
+      const meal = { ...macros, id: newMealId(), fiber: Math.round(Number(macros.fiber) || 0), type: 'Meal', synced: false };
+      added = { meal, list: [...mealsRef.current, meal] };
+      setMeals(prev => [...prev, meal]);
+      setMealStatus({ text: '', type: '' });
       setMealInput('');
       setPhoto(null);
       setPrefillMeal(null);
-      setTimeout(() => setMealStatus({ text: '', type: '' }), 3000);
     } catch (err) {
       setMealStatus({ text: `Error: ${err.message}`, type: 'error' });
     }
     setMealLoading(false);
+    return added;
+  }
+
+  // The one Save button: if something is typed or attached, work out its macros first, then save the day.
+  async function saveMeal() {
+    if (dayError || mealLoading || syncLoading) return;
+    if (!(mealInput.trim() || photo || prefillMeal)) {
+      await syncToServer();
+      return;
+    }
+    const added = await estimateMeal();
+    if (added) await syncToServer(added.list, `✓ Saved: ${added.meal.name} (${added.meal.calories} kcal)`);
+  }
+
+  async function saveEditedMeal(updated) {
+    const list = mealsRef.current.map((m) => (m.id === updated.id ? { ...updated, synced: false } : m));
+    setMeals(list);
+    setMealsDirty(true);
+    setEditingMeal(null);
+    await syncToServer(list, `✓ Saved: ${updated.name}`);
   }
 
   async function completeCheckin() {
@@ -2318,9 +2397,10 @@ export default function Home() {
     setProfileSaving(false);
   }
 
-  async function syncToServer() {
+  // Saves the day. Pass the list when it was only just changed and the state hasn't caught up yet.
+  async function syncToServer(list = mealsRef.current, okText = '✓ Saved') {
     if (dayError) return;
-    if (pendingCount === 0 && !mealsDirty) {
+    if (list === mealsRef.current && pendingCount === 0 && !mealsDirty) {
       setSyncStatus({ text: 'Nothing to save', type: 'error' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 2000);
       return;
@@ -2328,8 +2408,8 @@ export default function Home() {
     setSyncLoading(true);
     setSyncStatus({ text: 'Saving…', type: 'loading' });
     try {
-      const mealLogText = mealsToMealLogText(meals);
-      const currentTotals = meals.reduce(
+      const mealLogText = mealsToMealLogText(list);
+      const currentTotals = list.reduce(
         (acc, m) => ({
           calories: acc.calories + m.calories,
           protein: acc.protein + m.protein,
@@ -2351,19 +2431,39 @@ export default function Home() {
       setMeals((prev) => prev.map((m) => ({ ...m, synced: true })));
       setMealsDirty(false);
       refreshHistory();
-      setSyncStatus({ text: '✓ Saved', type: 'success' });
+      setSyncStatus({ text: okText, type: 'success' });
       setTimeout(() => setSyncStatus({ text: '', type: '' }), 3000);
+      setSyncLoading(false);
+      return true;
     } catch (err) {
       setSyncStatus({ text: `Error: ${err.message}`, type: 'error' });
     }
     setSyncLoading(false);
+    return false;
   }
+
+  // Swiping a meal right: open the chat pointed at that meal, so they can say what they actually ate.
+  function fixMealInChat(m) {
+    if (!chatMeal || chatMeal.id !== m.id) {
+      setChatHistory((h) => [...h, {
+        role: 'assistant',
+        content: `Let's fix **${m.name}** (${m.calories} kcal). Tell me what you actually had, like "only half", "about double", or "I didn't eat it".`,
+      }]);
+    }
+    setChatMeal({ id: m.id });
+    setTab('advisor');
+  }
+  useEffect(() => {
+    if (tab !== 'advisor') setChatMeal(null);
+  }, [tab]);
 
   async function sendAdvisorMessage(msg) {
     const typed = msg || advisorInput.trim();
     const attached = chatPhoto;
     const message = typed || (attached ? 'What do you think of this? Estimate the macros.' : '');
     if (!message || advisorLoading) return;
+    // While a logged meal is being fixed, the advisor gets it as it stands now (it may have just been changed).
+    const fixing = chatMeal ? mealsRef.current.find((m) => m.id === chatMeal.id) || null : null;
     setAdvisorLoading(true);
     setAdvisorInput('');
     setChatPhoto(null);
@@ -2378,6 +2478,7 @@ export default function Home() {
           message,
           totals,
           meals,
+          editMeal: fixing ? { name: fixing.name, calories: fixing.calories, protein: fixing.protein, carbs: fixing.carbs, fat: fixing.fat, fiber: fixing.fiber } : null,
           chatHistory: chatHistory.slice(-10).map(({ role, content }) => ({ role, content })),
           photo: attached ? { base64: attached.base64, mediaType: attached.mediaType } : null,
         })
@@ -2391,12 +2492,29 @@ export default function Home() {
         setMeals(prev => [...prev, mealToLog]);
       }
 
+      // If they were fixing a logged meal and the advisor worked out what they actually ate, change the list and save the day.
+      let change = null;
+      if (fixing && data.action === 'update_meal' && data.mealUpdate) {
+        const updated = { ...fixing, ...data.mealUpdate, fiber: Math.round(Number(data.mealUpdate.fiber) || 0), synced: false };
+        const list = mealsRef.current.map((m) => (m.id === fixing.id ? updated : m));
+        setMeals(list);
+        setMealsDirty(true);
+        change = { kind: 'update', name: updated.name, calories: updated.calories, saved: await syncToServer(list, `✓ Saved: ${updated.name}`) };
+      } else if (fixing && data.action === 'remove_meal') {
+        const list = mealsRef.current.filter((m) => m.id !== fixing.id);
+        setMeals(list);
+        setMealsDirty(true);
+        setChatMeal(null);
+        change = { kind: 'remove', name: fixing.name, saved: await syncToServer(list, `✓ Saved: removed ${fixing.name}`) };
+      }
+
       setChatHistory(h => [...h, {
         role: 'assistant',
         content: data.reply,
-        mealData: data.mealData || null,
-        mealOptions: data.mealOptions || null,
-        action: data.action || null
+        mealData: change ? null : data.mealData || null,
+        mealOptions: change ? null : data.mealOptions || null,
+        action: change ? null : data.action || null,
+        change,
       }]);
       setAdvisorStatus({ text: '', type: '' });
     } catch (err) {
@@ -2411,6 +2529,7 @@ export default function Home() {
   const proteinLeft = Math.max(0, PROTEIN_TARGET - Math.round(totals.protein));
   const fiberLeft = Math.max(0, FIBER_TARGET - Math.round(totals.fiber));
   const pendingCount = meals.filter(m => !m.synced).length;
+  const fixingMeal = chatMeal ? meals.find((m) => m.id === chatMeal.id) || null : null;
   const macroBars = [
     { key: 'carbs', label: 'Carbs', value: totals.carbs, target: profile.carb_target },
     { key: 'protein', label: 'Protein', value: totals.protein, target: PROTEIN_TARGET },
@@ -2587,6 +2706,8 @@ export default function Home() {
         />
       )}
 
+      {editingMeal && <EditMealSheet meal={editingMeal} onSave={saveEditedMeal} onClose={() => setEditingMeal(null)} />}
+
       <div className="wrap">
         <div className="sticky-top">
           <div className="header">
@@ -2712,27 +2833,21 @@ export default function Home() {
               <textarea
                 value={mealInput}
                 onChange={e => { setMealInput(e.target.value); if (prefillMeal && e.target.value !== prefillMeal.name) setPrefillMeal(null); }}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) estimateMeal(); }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveMeal(); }}
                 placeholder={prefillMeal ? `From advisor: ${prefillMeal.name}` : "Describe what you ate — or leave blank if photo is clear enough"}
                 rows={2}
               />
-              <div className="input-row">
-                <button className="btn-estimate" disabled={mealLoading || (!mealInput.trim() && !photo && !prefillMeal)} onClick={estimateMeal}>
-                  {mealLoading ? 'Working...' : <><span>Estimate</span><ZapIcon size={11} style={{ color: 'var(--accent)' }} /></>}
-                </button>
-              </div>
-              {mealStatus.text && <div className={`status status-${mealStatus.type}`}>{mealStatus.text}</div>}
-              <div className="divider" />
               {(pendingCount > 0 || mealsDirty) && (
                 <div className="sync-status">
                   <DotIcon size={7} />
                   {pendingCount > 0 ? `${pendingCount} meal${pendingCount > 1 ? 's' : ''} pending save` : 'Changes pending save'}
                 </div>
               )}
-              <button className="btn-sync" disabled={syncLoading || dayError || (pendingCount === 0 && !mealsDirty)} onClick={syncToServer}>
+              <button className="btn-sync" disabled={mealLoading || syncLoading || dayError || (!(mealInput.trim() || photo || prefillMeal) && pendingCount === 0 && !mealsDirty)} onClick={saveMeal}>
                 <ArrowUpIcon size={16} />
-                {syncLoading ? 'Saving…' : 'Save'}
+                {mealLoading ? 'Working out the macros…' : syncLoading ? 'Saving…' : 'Save'}
               </button>
+              {mealStatus.text && <div className={`status status-${mealStatus.type}`}>{mealStatus.text}</div>}
               {syncStatus.text && <div className={`status status-${syncStatus.type}`}>{syncStatus.text}</div>}
             </div>
 
@@ -2748,7 +2863,7 @@ export default function Home() {
                 : meals.map((m) => {
                     const colors = mealTypeColors[m.type] || mealTypeColors.Lunch;
                     return (
-                      <SwipeMealRow key={m.id} onDelete={() => {
+                      <SwipeMealRow key={m.id} onEdit={() => { if (!dayError) fixMealInChat(m); }} onDelete={() => {
                         const wasSynced = m.synced;
                         setMealsDirty(true);
                         setMeals(prev => {
@@ -2777,6 +2892,7 @@ export default function Home() {
                     );
                   })
               }
+              {meals.length > 0 && <div className="meal-hint">Swipe left to delete, right to fix a portion in the chat.</div>}
             </div>
 
             {viewDate === todayDate && planHasContent(plans[tomorrowDate]) && (
@@ -2835,6 +2951,11 @@ export default function Home() {
                             .replace(/\n/g, '<br/>')
                         }} />
                       )}
+                      {m.role === 'assistant' && m.change && (
+                        <div className="change-note">
+                          <CheckIcon size={10} /> {m.change.kind === 'remove' ? `Removed ${m.change.name}` : `Now ${m.change.calories} kcal`}{m.change.saved ? ' and saved' : '. Save it on the Track tab.'}
+                        </div>
+                      )}
                       {m.role === 'assistant' && m.action === 'log_meal' && (
                         <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
                           <CheckIcon size={10} /> Added to your list. Save it on the Track tab.
@@ -2880,6 +3001,16 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {fixingMeal && (
+                <div className="fix-bar">
+                  <div className="fix-head">
+                    <span className="fix-name"><span className="fix-label">Fixing</span><b className="fix-title">{fixingMeal.name}</b><span className="fix-kcal">{fixingMeal.calories} kcal</span></span>
+                    <button type="button" className="fix-link" onClick={() => setEditingMeal(fixingMeal)}>Edit numbers</button>
+                    <button type="button" className="fix-x" aria-label="Stop fixing this meal" onClick={() => setChatMeal(null)}>×</button>
+                  </div>
+                </div>
+              )}
 
               <div className="composer-bar">
                 <div className="attach-wrap">
@@ -2929,7 +3060,7 @@ export default function Home() {
                         e.preventDefault();
                         sendAdvisorMessage();
                       }}
-                      placeholder={chatPhoto ? 'Add a message…' : 'Ask anything…'}
+                      placeholder={chatPhoto ? 'Add a message…' : fixingMeal ? 'What did you actually have?' : 'Ask anything…'}
                       aria-label="Message the advisor"
                     />
                     <button

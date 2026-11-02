@@ -69,6 +69,8 @@ export default async function handler(req, res) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
     .slice(-MAX_HISTORY_MESSAGES);
   while (chatHistory.length && chatHistory[0].role !== 'user') chatHistory = chatHistory.slice(1);
+  // A meal they already logged and are correcting (they swiped it in their list): what they actually ate may differ.
+  const editMeal = body.editMeal && typeof body.editMeal === 'object' ? normalizeMeal(body.editMeal) : null;
   const [profile, libraryRows] = await Promise.all([loadProfile(), loadLibrary()]);
   const TDEE = profile?.calorie_target || DEFAULT_TARGETS.calorie_target;
   const PROTEIN_TARGET = profile?.protein_target || DEFAULT_TARGETS.protein_target;
@@ -100,8 +102,19 @@ export default async function handler(req, res) {
     ? `\nRecipes they've saved (their "Recipes" list) (macros are per serving). Prefer suggesting these by their exact name when they fit, and mention leftovers when servings are left:\n${libraryRows.map((m) => `- ${m.name}: ${m.calories} kcal, P${m.protein}g C${m.carbs}g F${m.fat}g Fiber${m.fiber}g${m.servings_left != null ? ` (${Number(m.servings_left)} servings left)` : ''}`).join('\n')}\n`
     : '';
 
+  const editBlock = editMeal
+    ? `
+They are fixing a meal they already logged today: "${editMeal.name}" (${editMeal.calories} kcal, P${editMeal.protein}g C${editMeal.carbs}g F${editMeal.fat}g Fiber${editMeal.fiber}g, as currently logged). Common reasons: they only ate part of the portion, they ate more, they logged it before eating, or a suggested meal was added but never eaten.
+Work out from their message how much of it they actually ate, and answer in a sentence or two, warmly and without judgment.
+- If you know the new amount, end with UPDATE_MEAL:{"name":"${editMeal.name.replace(/["\\]/g, '')}","calories":N,"protein":N,"carbs":N,"fat":N,"fiber":N} with the macros for what they actually ate, scaled from the logged numbers (half the portion means half of each; keep the name unless the portion belongs in it).
+- If they didn't eat it at all, end with REMOVE_MEAL:{} and say it's off their list.
+- If you can't tell how much they ate, ask one short question and include no tag.
+- If their message isn't about this meal, just answer it and include no tag.
+`
+    : '';
+
   const system = `You are a precise, data-driven nutrition advisor in an ongoing conversation with someone tracking macros for their health. ${goalLine}
-${prefsBlock}${libraryBlock}
+${prefsBlock}${libraryBlock}${editBlock}
 Their stats today:
 - Calorie target: ${TDEE} kcal | Protein target: ${PROTEIN_TARGET}g | Fiber target: ${FIBER_TARGET}g
 - Eaten: ${Math.round(totals.calories)} kcal | P${Math.round(totals.protein)}g C${Math.round(totals.carbs)}g F${Math.round(totals.fat)}g Fiber${Math.round(totals.fiber || 0)}g
@@ -127,7 +140,7 @@ IMPORTANT: End your response with structured data on its own line when relevant:
 - User asks to log a meal (e.g. "log it", "add that", "log it but change calories to X", "actually it was 2 servings"): LOG_MEAL:{"name":"Meal name","calories":400,"protein":35,"carbs":20,"fat":15,"fiber":6}
 
 For LOG_MEAL: use the corrected values the user specifies. If they say "it was 2 servings", multiply the macros accordingly. Confirm what you logged in your reply text.
-Only include one of these tags per response. JSON must be valid and on a single line.`;
+Only include one of these tags per response. JSON must be valid and on a single line.${editMeal ? '\nWhile they are fixing a meal, do not use LOG_MEAL, MEAL_DATA or MEAL_OPTIONS; use only UPDATE_MEAL or REMOVE_MEAL as described above.' : ''}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -168,29 +181,44 @@ Only include one of these tags per response. JSON must be valid and on a single 
     let mealData = null;
     let mealOptions = null;
     let action = null;
+    let mealUpdate = null;
+
+    // Extract UPDATE_MEAL / REMOVE_MEAL (only meaningful while they are fixing a logged meal)
+    const updateMatch = raw.match(/UPDATE_MEAL:(\{.+?\})/);
+    if (updateMatch) {
+      if (editMeal) {
+        try { mealUpdate = normalizeMeal(JSON.parse(updateMatch[1])); if (mealUpdate) action = 'update_meal'; } catch {}
+      }
+      reply = reply.replace(/\n?UPDATE_MEAL:\{.+?\}/, '').trim();
+    }
+    const removeMatch = raw.match(/REMOVE_MEAL:\{\s*\}/);
+    if (removeMatch) {
+      if (editMeal && !mealUpdate) action = 'remove_meal';
+      reply = reply.replace(/\n?REMOVE_MEAL:\{\s*\}/, '').trim();
+    }
 
     // Extract LOG_MEAL (user asked to log with corrections)
     const logMealMatch = raw.match(/LOG_MEAL:(\{.+?\})/);
     if (logMealMatch) {
       try { mealData = normalizeMeal(JSON.parse(logMealMatch[1])); if (mealData) action = 'log_meal'; } catch {}
-      reply = raw.replace(/\nLOG_MEAL:\{.+?\}/, '').replace(/LOG_MEAL:\{.+?\}/, '').trim();
+      reply = reply.replace(/\nLOG_MEAL:\{.+?\}/, '').replace(/LOG_MEAL:\{.+?\}/, '').trim();
     }
 
     // Extract MEAL_DATA (single meal suggestion)
     const mealDataMatch = raw.match(/MEAL_DATA:(\{.+?\})/);
     if (mealDataMatch) {
       try { mealData = normalizeMeal(JSON.parse(mealDataMatch[1])); } catch {}
-      reply = raw.replace(/\nMEAL_DATA:\{.+?\}/, '').replace(/MEAL_DATA:\{.+?\}/, '').trim();
+      reply = reply.replace(/\nMEAL_DATA:\{.+?\}/, '').replace(/MEAL_DATA:\{.+?\}/, '').trim();
     }
 
     // Extract MEAL_OPTIONS (multiple meal suggestions)
     const mealOptionsMatch = raw.match(/MEAL_OPTIONS:(\[.+?\])/);
     if (mealOptionsMatch) {
       try { const opts = JSON.parse(mealOptionsMatch[1]); mealOptions = Array.isArray(opts) ? opts.map(normalizeMeal).filter(Boolean) : null; } catch {}
-      reply = raw.replace(/\nMEAL_OPTIONS:\[.+?\]/, '').replace(/MEAL_OPTIONS:\[.+?\]/, '').trim();
+      reply = reply.replace(/\nMEAL_OPTIONS:\[.+?\]/, '').replace(/MEAL_OPTIONS:\[.+?\]/, '').trim();
     }
 
-    res.status(200).json({ reply, mealData, mealOptions, action });
+    res.status(200).json({ reply, mealData, mealOptions, action, mealUpdate });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
