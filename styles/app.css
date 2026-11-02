@@ -73,7 +73,7 @@
   .ctx-item { text-align: center; }
   .ctx-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 3px; }
   .ctx-value { font-size: 17px; font-weight: 600; color: var(--ink); }
-  .chat { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; min-height: 120px; max-height: min(56dvh, 520px); overflow-y: auto; padding-right: 2px; }
+  .chat { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; min-height: 120px; max-height: min(56dvh, 520px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-right: 2px; }
   .chat::-webkit-scrollbar { width: 3px; }
   .chat::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
   .msg-wrap { display: flex; flex-direction: column; max-width: 88%; }
@@ -96,9 +96,20 @@
   .chat-empty { font-size: 14px; color: var(--muted); text-align: center; padding: 32px 16px; line-height: 1.8; }
   .composer-bar { display: flex; align-items: flex-end; gap: 8px; }
   html { --kb-top: 0px; --kb-h: 100dvh; } /* set from JS while the keyboard is up: the visible area above it */
-  .kb-open .sticky-top { opacity: 0; pointer-events: none; }
-  .kb-open .chat-card { position: fixed; z-index: 150; left: 12px; right: 12px; max-width: 536px; margin: 0 auto; top: calc(var(--kb-top, 0px) + env(safe-area-inset-top) + 8px); height: calc(var(--kb-h, 100dvh) - env(safe-area-inset-top) - 16px); padding-bottom: 8px; display: flex; flex-direction: column; }
-  .kb-open .chat-card .chat { flex: 1; min-height: 0; max-height: none; }
+  /* The Meal Plan tab (JS puts .chat-lock on <html>) is a pinned screen, not part of the scrolling page: the header and today's numbers on top, a thread
+     that scrolls on its own, and the message bar at the bottom. With the keyboard up (.kb-open) the whole screen shrinks to the visible area above it
+     and the header gives way, like Messages. The page itself never scrolls, so there is nothing to bounce. */
+  .chat-lock, .chat-lock body { overflow: hidden; overscroll-behavior: none; }
+  .chat-lock .wrap { position: fixed; top: var(--kb-top); left: 0; right: 0; height: var(--kb-h); padding: 0; overflow: hidden; }
+  .chat-lock .sticky-top { position: static; flex: none; }
+  .chat-lock .panel { flex: 1; min-height: 0; padding-bottom: calc(env(safe-area-inset-bottom) + 12px); }
+  .chat-lock .ctx-bar { flex: none; margin-bottom: 0; }
+  .chat-lock .chat-card { flex: 1; min-height: 0; margin-bottom: 0; display: flex; flex-direction: column; }
+  .chat-lock .chat { flex: 1; max-height: none; }
+  .chat-lock.kb-open .wrap { padding-top: calc(env(safe-area-inset-top) + 8px); }
+  .chat-lock.kb-open .sticky-top, .chat-lock.kb-open .ctx-bar { display: none; }
+  .chat-lock.kb-open .panel { padding: 0 12px 4px; }
+  .chat-lock.kb-open .chat-card { padding: 14px 14px 8px; }
   .attach-wrap { position: relative; flex: none; }
   .attach-btn { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--green-tint); color: var(--accent); display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .attach-btn:hover { background: var(--green-soft); }

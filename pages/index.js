@@ -1698,7 +1698,7 @@ export default function Home() {
   const chatRef = useRef(null);
   const composerRef = useRef(null);
   const composerFocused = useRef(false);
-  const chatCardRef = useRef(null);
+  const stickBottom = useRef(true); // true while the thread is scrolled to the newest message
   const updateKeyboard = useRef(() => {});
   const chatPhotoInputRef = useRef(null);
   const [chatPhoto, setChatPhoto] = useState(null);
@@ -1994,9 +1994,32 @@ export default function Home() {
     })();
   }, [profileLoaded, skipChecked, onboardingSkipped, profile]);
 
+  // Jump to the newest message whenever the chat opens (the thread is a fresh element each time the tab opens) or grows.
+  function chatToEnd() {
+    const el = chatRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stickBottom.current = true;
+  }
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-  }, [chatHistory]);
+    if (tab !== 'advisor') return undefined;
+    chatToEnd();
+    const raf = requestAnimationFrame(chatToEnd); // again once fonts and layout have settled
+    return () => cancelAnimationFrame(raf);
+  }, [tab, chatHistory, advisorLoading]);
+
+  // The Meal Plan tab is a pinned screen (header, thread that scrolls on its own, message bar), not part of the scrolling page,
+  // so the page can't be dragged or bounce while you chat. See .chat-lock in app.css.
+  useEffect(() => {
+    if (tab !== 'advisor') return undefined;
+    const root = document.documentElement;
+    root.classList.add('chat-lock');
+    return () => {
+      root.classList.remove('chat-lock');
+      composerFocused.current = false; // the box is leaving the page, which doesn't always fire blur
+      updateKeyboard.current();
+    };
+  }, [tab]);
 
   useEffect(() => {
     if (!attachOpen) return undefined;
@@ -2007,7 +2030,7 @@ export default function Home() {
     return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', onKey); };
   }, [attachOpen]);
 
-  // Like Messages: while the keyboard is up, the chat becomes a card pinned to exactly the visible area above it, so the
+  // Like Messages: while the keyboard is up, the pinned chat screen shrinks to exactly the visible area above it, so the
   // thread fills the middle and the message bar sits on the keyboard. iPhone doesn't resize the page for the keyboard and
   // doesn't reliably announce when it finishes opening or closing, so this re-checks for a moment after every change
   // (and while typing) instead of trusting one event. "Open" needs the box focused AND the visible area actually shrunk.
@@ -2015,22 +2038,24 @@ export default function Home() {
     const vv = window.visualViewport;
     const root = document.documentElement;
     let timers = [];
+    let last = '';
     const update = () => {
       const open = Boolean(vv) && composerFocused.current && window.innerHeight - vv.height > 120;
+      const top = open ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+      const height = open ? Math.round(vv.height) : 0;
+      const key = open + ':' + top + ':' + height;
+      if (key === last) return;
+      last = key;
       if (open) {
-        root.style.setProperty('--kb-top', vv.offsetTop + 'px');
-        root.style.setProperty('--kb-h', vv.height + 'px');
-      }
-      const wasOpen = root.classList.contains('kb-open');
-      // The card leaves the page flow while the keyboard is up. Hold its space, so the page doesn't suddenly get
-      // shorter and make iOS jump the scroll position (that showed up as the chat shaking and bouncing).
-      const holder = chatCardRef.current && chatCardRef.current.parentElement;
-      if (holder) {
-        if (open && !wasOpen) holder.style.minHeight = holder.offsetHeight + 'px';
-        else if (!open && wasOpen) holder.style.minHeight = '';
+        root.style.setProperty('--kb-top', top + 'px');
+        root.style.setProperty('--kb-h', height + 'px');
+      } else {
+        root.style.removeProperty('--kb-top');
+        root.style.removeProperty('--kb-h');
       }
       root.classList.toggle('kb-open', open);
-      if (open && !wasOpen && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+      // The thread just got taller or shorter; if you were at the newest message, stay there.
+      if (chatRef.current && stickBottom.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
     };
     const settle = () => {
       timers.forEach(clearTimeout);
@@ -2761,8 +2786,12 @@ export default function Home() {
               <div className="ctx-item"><div className="ctx-label">Fiber left</div><div className="ctx-value">{fiberLeft}g</div></div>
             </div>
 
-            <div className="card chat-card" ref={chatCardRef}>
-              <div className="chat" ref={chatRef}>
+            <div className="card chat-card">
+              <div
+                className="chat"
+                ref={chatRef}
+                onScroll={(e) => { const el = e.currentTarget; stickBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}
+              >
                 {chatHistory.length === 0 && (
                   <div className="chat-empty">
                     {deficit < 0 ? (
@@ -2781,7 +2810,7 @@ export default function Home() {
                 {chatHistory.map((m, i) => (
                   <div key={i} className={`msg-wrap ${m.role === 'user' ? 'user' : 'assistant'}`}>
                     <div className={`chat-bubble ${m.role === 'user' ? 'user' : 'assistant'}${m.photoUrl ? ' has-photo' : ''}`}>
-                      {m.role === 'user' && m.photoUrl && <img className="chat-photo" src={m.photoUrl} alt="Attached meal" />}
+                      {m.role === 'user' && m.photoUrl && <img className="chat-photo" src={m.photoUrl} alt="Attached meal" onLoad={() => { if (stickBottom.current) chatToEnd(); }} />}
                       {m.role === 'user' && !m.photoUrl && m.hadPhoto && <div className="chat-photo-note"><CameraIcon size={12} /> Photo</div>}
                       {m.role === 'user' ? (m.photoOnly ? null : <div className={m.photoUrl ? 'chat-photo-text' : undefined}>{m.content}</div>) : (
                         <span dangerouslySetInnerHTML={{ __html:
