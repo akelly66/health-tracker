@@ -1413,7 +1413,7 @@ function LibraryEditor({ initial, read, todayMeals = [], onSaved, onDeleted, onC
   }
 
   async function remove() {
-    if (!window.confirm(`Remove "${name}" from your library?`)) return;
+    if (!window.confirm(`Remove "${name}" from your recipes?`)) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/library?id=${editingId}`, { method: 'DELETE' });
@@ -1434,10 +1434,10 @@ function LibraryEditor({ initial, read, todayMeals = [], onSaved, onDeleted, onC
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label={editingId ? 'Edit saved meal' : 'Add to your library'} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label={editingId ? 'Edit saved meal' : 'Add to your recipes'} onClick={(e) => e.stopPropagation()}>
         {stage === 'source' && (
           <>
-            <div className="modal-title">Add to your library</div>
+            <div className="modal-title">Add to your recipes</div>
             <div className="modal-sub">Save a meal once, then add it any day with a tap.</div>
             <div className="lib-source">
               <button type="button" className="lib-source-btn" disabled={reading} onClick={() => fileRef.current && fileRef.current.click()}>
@@ -1511,7 +1511,7 @@ function LibraryEditor({ initial, read, todayMeals = [], onSaved, onDeleted, onC
 
         {stage === 'form' && (
           <>
-            <div className="modal-title">{editingId ? 'Edit saved meal' : 'Save to your library'}</div>
+            <div className="modal-title">{editingId ? 'Edit saved meal' : 'Save to your recipes'}</div>
             <div className="modal-sub">Numbers are for one serving.</div>
             {fromAi && <div className="pace-note suggest lib-note">Read from your recipe. Check the numbers before you save.</div>}
             <label className="field">
@@ -1537,7 +1537,7 @@ function LibraryEditor({ initial, read, todayMeals = [], onSaved, onDeleted, onC
               <button type="button" className="btn-primary" disabled={saving || !name.trim()} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
             {editingId && (
-              <button type="button" className="link-quiet" disabled={saving} onClick={remove}>Remove from library</button>
+              <button type="button" className="link-quiet" disabled={saving} onClick={remove}>Remove from recipes</button>
             )}
           </>
         )}
@@ -1560,7 +1560,7 @@ function LibrarySheet({ date, todayMeals, onAdd, onClose }) {
     try {
       const res = await fetch('/api/library');
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || 'Could not load your library');
+      if (!res.ok) throw new Error(j.error || 'Could not load your recipes');
       setItems(j.items || []);
     } catch (e) {
       setError(e.message);
@@ -1570,7 +1570,7 @@ function LibrarySheet({ date, todayMeals, onAdd, onClose }) {
   useEffect(() => { load(); }, [load]);
 
   async function remove(item) {
-    if (!window.confirm(`Remove "${item.name}" from your library?`)) return;
+    if (!window.confirm(`Remove "${item.name}" from your recipes?`)) return;
     try {
       const res = await fetch(`/api/library?id=${item.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not remove that meal');
@@ -1603,14 +1603,14 @@ function LibrarySheet({ date, todayMeals, onAdd, onClose }) {
   return (
     <>
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label="Your meal library" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-sheet tall" role="dialog" aria-modal="true" aria-label="Your recipes" onClick={(e) => e.stopPropagation()}>
         <div className="set-head">
-          <div className="modal-title">Your library</div>
+          <div className="modal-title">Your recipes</div>
           <button type="button" className="set-edit" onClick={() => setEditor({ initial: null })}>+ Add</button>
         </div>
         <div className="modal-sub">Saved meals and recipes. Add a serving to today with one tap.</div>
         {items && items.length > 5 && (
-          <input className="field-input text lib-search" aria-label="Search your library" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="field-input text lib-search" aria-label="Search your recipes" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
         )}
         {error && <div className="status status-error">{error} <button type="button" className="link-btn-inline" onClick={load}>Try again</button></div>}
         {items === null && <div className="set-empty">Loading…</div>}
@@ -2008,6 +2008,14 @@ export default function Home() {
     return () => cancelAnimationFrame(raf);
   }, [tab, chatHistory, advisorLoading]);
 
+  useEffect(() => {
+    const el = chatRef.current;
+    if (tab !== 'advisor' || !el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => { if (stickBottom.current) el.scrollTop = el.scrollHeight; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tab]);
+
   // The Meal Plan tab is a pinned screen (header, thread that scrolls on its own, message bar), not part of the scrolling page,
   // so the page can't be dragged or bounce while you chat. See .chat-lock in app.css.
   useEffect(() => {
@@ -2033,20 +2041,27 @@ export default function Home() {
   // Like Messages: while the keyboard is up, the pinned chat screen shrinks to exactly the visible area above it, so the
   // thread fills the middle and the message bar sits on the keyboard. iPhone doesn't resize the page for the keyboard and
   // doesn't reliably announce when it finishes opening or closing, so this re-checks for a moment after every change
-  // (and while typing) instead of trusting one event. "Open" needs the box focused AND the visible area actually shrunk.
+  // (and while typing) instead of trusting one event. The pinned screen always follows the visible area, whether or not
+  // the keyboard was recognised; "open" (which hides the header) needs the box focused AND the area to have shrunk a lot.
   useEffect(() => {
     const vv = window.visualViewport;
     const root = document.documentElement;
     let timers = [];
     let last = '';
+    let full = window.innerHeight; // how tall the visible area is with no keyboard
     const update = () => {
-      const open = Boolean(vv) && composerFocused.current && window.innerHeight - vv.height > 120;
-      const top = open ? Math.max(0, Math.round(vv.offsetTop)) : 0;
-      const height = open ? Math.round(vv.height) : 0;
+      if (!vv) return;
+      if (!composerFocused.current) full = Math.max(window.innerHeight, vv.height);
+      const shrunk = full - vv.height;
+      const pinned = root.classList.contains('chat-lock');
+      const follow = pinned && (shrunk > 40 || vv.offsetTop > 0);
+      const open = pinned && composerFocused.current && shrunk > 120;
+      const top = follow ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+      const height = follow ? Math.round(vv.height) : 0;
       const key = open + ':' + top + ':' + height;
       if (key === last) return;
       last = key;
-      if (open) {
+      if (follow) {
         root.style.setProperty('--kb-top', top + 'px');
         root.style.setProperty('--kb-h', height + 'px');
       } else {
@@ -2228,7 +2243,7 @@ export default function Home() {
       // Added from the chat: say so in the conversation, which also tells the advisor what was eaten.
       setChatHistory((h) => [...h, {
         role: 'assistant',
-        content: `Added **${meal.name}** from your library: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g.`,
+        content: `Added **${meal.name}** from your recipes: ${meal.calories} kcal · P${meal.protein}g C${meal.carbs}g F${meal.fat}g Fiber ${meal.fiber}g.`,
         action: 'log_meal',
       }]);
     } else {
@@ -2472,7 +2487,7 @@ export default function Home() {
           todayMeals={meals}
           onSaved={(item) => {
             setLibraryEdit(null);
-            if (tab === 'advisor') setChatHistory((h) => [...h, { role: 'assistant', content: `Saved **${item.name}** to your library.` }]);
+            if (tab === 'advisor') setChatHistory((h) => [...h, { role: 'assistant', content: `Saved **${item.name}** to your recipes.` }]);
           }}
           onDeleted={() => setLibraryEdit(null)}
           onClose={() => setLibraryEdit(null)}
@@ -2672,7 +2687,7 @@ export default function Home() {
             <div className="card">
               <div className="card-header">
                 <div className="card-title">Add a meal</div>
-                <button type="button" className="set-edit lib-open" onClick={() => setLibraryOpen(true)}><LibraryIcon size={13} /> Library</button>
+                <button type="button" className="set-edit lib-open" onClick={() => setLibraryOpen(true)}><LibraryIcon size={13} /> Recipes</button>
               </div>
               <div className="attach-row">
                 {photo ? (
@@ -2835,7 +2850,7 @@ export default function Home() {
                       {m.role === 'assistant' && m.mealData && (
                         <div>
                           <button type="button" className="log-this-btn quiet" onClick={() => setLibraryEdit(libraryFromChat(m, m.mealData))}>
-                            <LibraryIcon size={11} /> Save to library
+                            <LibraryIcon size={11} /> Save to recipes
                           </button>
                         </div>
                       )}
@@ -2886,7 +2901,7 @@ export default function Home() {
                         <BarcodeIcon size={16} /> Scan barcode
                       </button>
                       <button type="button" role="menuitem" className="attach-item" onClick={() => { setAttachOpen(false); setLibraryOpen(true); }}>
-                        <LibraryIcon size={16} /> From library
+                        <LibraryIcon size={16} /> From recipes
                       </button>
                     </div>
                   )}

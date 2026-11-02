@@ -62,7 +62,7 @@ export default async function handler(req, res) {
         WHERE id = ${id}
         RETURNING id, name, calories, protein, carbs, fat, fiber, notes, servings_left, use_count, to_char(last_used, 'YYYY-MM-DD') AS last_used
       `;
-      if (!rows.length) return res.status(404).json({ error: 'That meal is no longer in your library' });
+      if (!rows.length) return res.status(404).json({ error: 'That meal is no longer in your recipes' });
       return res.status(200).json({ item: clean(rows[0]) });
     }
 
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
         WHERE id = ${id}
         RETURNING id, name, calories, protein, carbs, fat, fiber, notes, servings_left, use_count, to_char(last_used, 'YYYY-MM-DD') AS last_used
       `;
-      if (!rows.length) return res.status(404).json({ error: 'That meal is no longer in your library' });
+      if (!rows.length) return res.status(404).json({ error: 'That meal is no longer in your recipes' });
       return res.status(200).json({ item: clean(rows[0]) });
     }
 

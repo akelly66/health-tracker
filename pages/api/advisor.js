@@ -97,7 +97,7 @@ export default async function handler(req, res) {
     : '';
 
   const libraryBlock = libraryRows.length
-    ? `\nMeals they've saved in their library (macros are per serving). Prefer suggesting these by their exact name when they fit, and mention leftovers when servings are left:\n${libraryRows.map((m) => `- ${m.name}: ${m.calories} kcal, P${m.protein}g C${m.carbs}g F${m.fat}g Fiber${m.fiber}g${m.servings_left != null ? ` (${Number(m.servings_left)} servings left)` : ''}`).join('\n')}\n`
+    ? `\nRecipes they've saved (their "Recipes" list) (macros are per serving). Prefer suggesting these by their exact name when they fit, and mention leftovers when servings are left:\n${libraryRows.map((m) => `- ${m.name}: ${m.calories} kcal, P${m.protein}g C${m.carbs}g F${m.fat}g Fiber${m.fiber}g${m.servings_left != null ? ` (${Number(m.servings_left)} servings left)` : ''}`).join('\n')}\n`
     : '';
 
   const system = `You are a precise, data-driven nutrition advisor in an ongoing conversation with someone tracking macros for their health. ${goalLine}
