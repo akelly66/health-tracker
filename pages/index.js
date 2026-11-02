@@ -2226,12 +2226,14 @@ export default function Home() {
   async function estimateMeal() {
     if (!mealInput.trim() && !photo && !prefillMeal) return null;
     let added = null;
+    const replaces = prefillMeal ? prefillMeal.replaces : null; // a meal fixed through the chat takes the old entry's place
     setMealLoading(true);
     setMealStatus({ text: 'Estimating macros...', type: 'loading' });
     try {
       let macros;
       if (prefillMeal) {
-        macros = { ...prefillMeal, confidence: prefillMeal.confidence || 'Medium' };
+        const { replaces: _drop, ...rest } = prefillMeal;
+        macros = { ...rest, confidence: prefillMeal.confidence || 'Medium' };
       } else {
         const estRes = await fetch('/api/estimate', {
           method: 'POST',
@@ -2245,8 +2247,10 @@ export default function Home() {
         if (macros.error) throw new Error(macros.error);
       }
       const meal = { ...macros, id: newMealId(), fiber: Math.round(Number(macros.fiber) || 0), type: 'Meal', synced: false };
-      added = { meal, list: [...mealsRef.current, meal] };
-      setMeals(prev => [...prev, meal]);
+      const keep = (list) => (replaces ? list.filter((m) => m.id !== replaces) : list);
+      added = { meal, list: [...keep(mealsRef.current), meal] };
+      setMeals(prev => [...keep(prev), meal]);
+      if (replaces) setMealsDirty(true);
       setMealStatus({ text: '', type: '' });
       setMealInput('');
       setPhoto(null);
@@ -2494,8 +2498,9 @@ export default function Home() {
 
       // If they were fixing a logged meal and the advisor worked out what they actually ate, change the list and save the day.
       let change = null;
-      if (fixing && data.action === 'update_meal' && data.mealUpdate) {
-        const updated = { ...fixing, ...data.mealUpdate, fiber: Math.round(Number(data.mealUpdate.fiber) || 0), synced: false };
+      const revised = data.action === 'update_meal' ? data.mealUpdate : data.action === 'log_meal' ? data.mealData : null; // a logged meal while fixing is the fix
+      if (fixing && revised) {
+        const updated = { ...fixing, ...revised, fiber: Math.round(Number(revised.fiber) || 0), synced: false };
         const list = mealsRef.current.map((m) => (m.id === fixing.id ? updated : m));
         setMeals(list);
         setMealsDirty(true);
@@ -2515,6 +2520,7 @@ export default function Home() {
         mealOptions: change ? null : data.mealOptions || null,
         action: change ? null : data.action || null,
         change,
+        replaces: fixing && !change ? fixing.id : undefined, // a meal suggested while fixing replaces the old entry when it's logged
       }]);
       setAdvisorStatus({ text: '', type: '' });
     } catch (err) {
@@ -2892,7 +2898,6 @@ export default function Home() {
                     );
                   })
               }
-              {meals.length > 0 && <div className="meal-hint">Swipe left to delete, right to fix a portion in the chat.</div>}
             </div>
 
             {viewDate === todayDate && planHasContent(plans[tomorrowDate]) && (
@@ -2963,7 +2968,7 @@ export default function Home() {
                       )}
                       {m.role === 'assistant' && m.mealData && m.action !== 'log_meal' && (
                         <div>
-                          <button className="log-this-btn" onClick={() => { setPrefillMeal(m.mealData); setTab('log'); }}>
+                          <button className="log-this-btn" onClick={() => { setPrefillMeal(m.replaces ? { ...m.mealData, replaces: m.replaces } : m.mealData); setTab('log'); }}>
                             <PlusIcon size={11} /> Log this meal
                           </button>
                         </div>
@@ -2984,7 +2989,7 @@ export default function Home() {
                       )}
                       {m.role === 'assistant' && m.mealOptions && m.mealOptions.map((opt, oi) => (
                         <div key={oi} className="opt-actions">
-                          <button className="log-this-btn" onClick={() => { setPrefillMeal(opt); setTab('log'); }}>
+                          <button className="log-this-btn" onClick={() => { setPrefillMeal(m.replaces ? { ...opt, replaces: m.replaces } : opt); setTab('log'); }}>
                             <PlusIcon size={11} /> Log: {opt.name}
                           </button>
                           <button type="button" className="log-this-btn quiet" onClick={() => setLibraryEdit(libraryFromChat(m, opt))}>
